@@ -31,9 +31,11 @@ Notez ces informations (vous en aurez besoin) :
 
 ```
 IP VPS     : ___________________
-User SSH   : root (ou autre) ___________________
+User SSH   : root
 Email SSL  : ___________________  (pour Let's Encrypt)
 ```
+
+> **Connexion root** : tout ce guide suppose que vous travaillez connecté en **root** (`root@votre-serveur:~#`). Pas besoin de créer un autre utilisateur.
 
 ---
 
@@ -98,44 +100,13 @@ Attendez la fin (peut prendre 2–5 minutes).
 
 ---
 
-## ÉTAPE 4 — Créer un utilisateur dédié (recommandé)
+## ÉTAPE 4 — Installer Docker et Git
 
-```bash
-adduser pharmavie
-```
-
-- Choisissez un mot de passe fort
-- Appuyez sur Entrée pour les champs optionnels (Full Name, etc.)
-
-Donnez les droits sudo :
-
-```bash
-usermod -aG sudo pharmavie
-```
-
-Connectez-vous avec cet utilisateur :
-
-```bash
-su - pharmavie
-```
-
-> Toutes les commandes suivantes sont exécutées en tant que `pharmavie` (ou `root` si vous préférez, en ajoutant `sudo`).
-
----
-
-## ÉTAPE 5 — Installer Docker et Git
+Toujours connecté en **root** :
 
 ```bash
 curl -fsSL https://get.docker.com | sh
-sudo usermod -aG docker $USER
-sudo apt install -y docker-compose-plugin git
-```
-
-**Important** : déconnectez-vous et reconnectez-vous pour que le groupe `docker` soit actif :
-
-```bash
-exit
-ssh pharmavie@IP_DE_VOTRE_VPS
+apt install -y docker-compose-plugin git
 ```
 
 Vérifiez :
@@ -148,13 +119,13 @@ git --version
 
 ---
 
-## ÉTAPE 6 — Configurer le pare-feu
+## ÉTAPE 5 — Configurer le pare-feu
 
 ```bash
-sudo ufw allow OpenSSH
-sudo ufw allow 80/tcp
-sudo ufw allow 443/tcp
-sudo ufw enable
+ufw allow OpenSSH
+ufw allow 80/tcp
+ufw allow 443/tcp
+ufw enable
 ```
 
 Tapez `y` pour confirmer.
@@ -162,20 +133,19 @@ Tapez `y` pour confirmer.
 Vérifiez :
 
 ```bash
-sudo ufw status
+ufw status
 ```
 
 Vous devez voir : `22`, `80`, `443` autorisés.
 
 ---
 
-## ÉTAPE 7 — Transférer le code sur le VPS
+## ÉTAPE 6 — Transférer le code sur le VPS
 
 ### Option A — Via Git (si le projet est sur GitHub/GitLab)
 
 ```bash
-sudo mkdir -p /opt/pharmavie
-sudo chown $USER:$USER /opt/pharmavie
+mkdir -p /opt/pharmavie
 git clone https://github.com/VOTRE_COMPTE/pharmavie.git /opt/pharmavie
 cd /opt/pharmavie
 ```
@@ -185,7 +155,7 @@ cd /opt/pharmavie
 Sur **votre PC** (PowerShell), pas sur le VPS :
 
 ```powershell
-scp -r d:\pharmavie pharmavie@IP_DE_VOTRE_VPS:/opt/pharmavie
+scp -r d:\pharmavie root@IP_DE_VOTRE_VPS:/opt/pharmavie
 ```
 
 Puis sur le **VPS** :
@@ -199,7 +169,7 @@ Vous devez voir : `apps/`, `deploy/`, `package.json`, `docker-compose.yml`, etc.
 
 ---
 
-## ÉTAPE 8 — Générer les secrets de production
+## ÉTAPE 7 — Générer les secrets de production
 
 Sur le **VPS** :
 
@@ -217,7 +187,7 @@ Notez le résultat → ce sera votre `POSTGRES_PASSWORD`.
 
 ---
 
-## ÉTAPE 9 — Créer le fichier `.env` de production
+## ÉTAPE 8 — Créer le fichier `.env` de production
 
 ```bash
 cd /opt/pharmavie/deploy
@@ -255,11 +225,11 @@ cat .env
 
 ---
 
-## ÉTAPE 10 — Obtenir le certificat HTTPS (Let's Encrypt)
+## ÉTAPE 9 — Obtenir le certificat HTTPS (Let's Encrypt)
 
 > **Pourquoi cette étape avant tout ?** Nginx a besoin des certificats SSL pour démarrer en HTTPS. On les obtient d'abord en HTTP.
 
-### 10.1 — Nginx temporaire (HTTP seulement)
+### 9.1 — Nginx temporaire (HTTP seulement)
 
 ```bash
 cd /opt/pharmavie/deploy
@@ -279,7 +249,7 @@ docker compose -f docker-compose.prod.yml ps
 curl -I http://pharmavie.space
 ```
 
-### 10.2 — Demander les certificats
+### 9.2 — Demander les certificats
 
 Remplacez `VOTRE_EMAIL` par votre vraie adresse :
 
@@ -297,7 +267,7 @@ Réponse attendue : `Successfully received certificate`.
 
 Si erreur `Connection refused` ou `DNS problem` → retournez à l'**ÉTAPE 1** et vérifiez le DNS.
 
-### 10.3 — Activer la configuration HTTPS complète
+### 9.3 — Activer la configuration HTTPS complète
 
 ```bash
 cp nginx/pharmavie.conf nginx/pharmavie.active.conf
@@ -306,7 +276,7 @@ docker compose -f docker-compose.prod.yml stop nginx-init
 
 ---
 
-## ÉTAPE 11 — Build et démarrage de toute la stack
+## ÉTAPE 10 — Build et démarrage de toute la stack
 
 ```bash
 cd /opt/pharmavie/deploy
@@ -334,11 +304,11 @@ Tous doivent être `running` (ou `healthy` pour postgres/redis).
 
 ---
 
-## ÉTAPE 12 — Initialiser la base de données
+## ÉTAPE 11 — Initialiser la base de données
 
 Exécutez **dans l'ordre**, une commande à la fois.
 
-### 12.1 — Schéma Prisma
+### 11.1 — Schéma Prisma
 
 ```bash
 docker compose -f docker-compose.prod.yml exec api npx prisma db push
@@ -346,19 +316,19 @@ docker compose -f docker-compose.prod.yml exec api npx prisma db push
 
 Réponse attendue : `Your database is now in sync`.
 
-### 12.2 — Données de base (comptes test, médicaments démo)
+### 11.2 — Données de base (comptes test, médicaments démo)
 
 ```bash
 docker compose -f docker-compose.prod.yml exec api npm run db:seed
 ```
 
-### 12.3 — Import pharmacies Côte d'Ivoire (~5 min)
+### 11.3 — Import pharmacies Côte d'Ivoire (~5 min)
 
 ```bash
 docker compose -f docker-compose.prod.yml exec api npm run import:pharmacies
 ```
 
-### 12.4 — Inventaire comparateur de prix (~5–15 min)
+### 11.4 — Inventaire comparateur de prix (~5–15 min)
 
 ```bash
 docker compose -f docker-compose.prod.yml exec api npm run inventory:seed
@@ -366,9 +336,9 @@ docker compose -f docker-compose.prod.yml exec api npm run inventory:seed
 
 ---
 
-## ÉTAPE 13 — Vérifications finales
+## ÉTAPE 12 — Vérifications finales
 
-### 13.1 — API
+### 12.1 — API
 
 ```bash
 curl https://api.pharmavie.space/api/v1/health
@@ -376,7 +346,7 @@ curl https://api.pharmavie.space/api/v1/health
 
 Réponse attendue (JSON) : statut OK avec base de données et Redis.
 
-### 13.2 — Site web
+### 12.2 — Site web
 
 Ouvrez dans un navigateur :
 
@@ -384,7 +354,7 @@ Ouvrez dans un navigateur :
 - https://pharmavie.space/login
 - https://pharmavie.space/admin/login
 
-### 13.3 — Test connexion OTP (admin)
+### 12.3 — Test connexion OTP (admin)
 
 1. Allez sur https://pharmavie.space/admin/login
 2. Numéro : `+2250700000099`
@@ -396,7 +366,7 @@ Ouvrez dans un navigateur :
 docker compose -f docker-compose.prod.yml logs api --tail 50
 ```
 
-Cherchez une ligne contenant le code OTP (si le mode dev est actif) ou configurez SMS (ÉTAPE 16).
+Cherchez une ligne contenant le code OTP (si le mode dev est actif) ou configurez SMS (ÉTAPE 15).
 
 | Rôle | Téléphone | URL |
 |------|-----------|-----|
@@ -406,7 +376,7 @@ Cherchez une ligne contenant le code OTP (si le mode dev est actif) ou configure
 
 ---
 
-## ÉTAPE 14 — Build app mobile (sur votre PC Windows)
+## ÉTAPE 13 — Build app mobile (sur votre PC Windows)
 
 Sur **votre PC**, pas sur le VPS :
 
@@ -431,7 +401,7 @@ Transférez-le sur votre téléphone et installez-le.
 
 ---
 
-## ÉTAPE 15 — Renouvellement automatique SSL
+## ÉTAPE 14 — Renouvellement automatique SSL
 
 Démarrez le conteneur certbot (renouvellement tous les 12 h) :
 
@@ -442,7 +412,7 @@ docker compose -f docker-compose.prod.yml --profile certbot-renew up -d certbot-
 
 ---
 
-## ÉTAPE 16 — OTP / SMS en production (obligatoire avant ouverture publique)
+## ÉTAPE 15 — OTP / SMS en production (obligatoire avant ouverture publique)
 
 En `NODE_ENV=production`, le code OTP **n'est plus affiché** dans l'interface.
 
@@ -472,13 +442,12 @@ L'OTP réapparaîtra dans les logs et l'UI. Repassez en `production` avant d'ouv
 
 ---
 
-## ÉTAPE 17 — Sauvegardes (à configurer)
+## ÉTAPE 16 — Sauvegardes (à configurer)
 
 ### Créer le dossier backups
 
 ```bash
-sudo mkdir -p /opt/backups
-sudo chown $USER:$USER /opt/backups
+mkdir -p /opt/backups
 ```
 
 ### Sauvegarde manuelle base de données
@@ -510,7 +479,7 @@ Ajoutez :
 
 ---
 
-## ÉTAPE 18 — Mises à jour futures
+## ÉTAPE 17 — Mises à jour futures
 
 Quand vous modifiez le code :
 
@@ -557,12 +526,12 @@ docker compose -f docker-compose.prod.yml up -d
 | Problème | Cause | Solution |
 |----------|-------|----------|
 | `nslookup` ne résout pas | DNS pas propagé | Attendre, revérifier ÉTAPE 1 |
-| Certbot échoue | Port 80 fermé ou DNS incorrect | `sudo ufw status`, revérifier DNS |
-| Nginx ne démarre pas | Certificats manquants | Refaire ÉTAPE 10 |
+| Certbot échoue | Port 80 fermé ou DNS incorrect | `ufw status`, revérifier DNS |
+| Nginx ne démarre pas | Certificats manquants | Refaire ÉTAPE 9 |
 | `502 Bad Gateway` | API ou Web down | `docker compose logs api web` |
 | CORS error dans le navigateur | Mauvais CORS_ORIGIN | `.env` → `CORS_ORIGIN=https://pharmavie.space` puis rebuild |
 | Mobile ne connecte pas | Mauvaise URL API | Rebuild APK avec `https://api.pharmavie.space/api/v1` |
-| OTP invisible | Mode production | Voir ÉTAPE 16 |
+| OTP invisible | Mode production | Voir ÉTAPE 15 |
 | `P1001` / DB error | Postgres pas prêt | `docker compose ps`, attendre `healthy` |
 | Manque de RAM | VPS 2 Go saturé | `docker stats`, passer à 4 Go |
 
