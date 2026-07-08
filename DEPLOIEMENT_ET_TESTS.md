@@ -280,7 +280,8 @@ curl -X POST http://localhost:3001/api/v1/auth/otp/verify \
 
 ## 9. Déploiement production (vue d'ensemble)
 
-> **Guide VPS complet** : voir [`DEPLOIEMENT_VPS.md`](./DEPLOIEMENT_VPS.md)  
+> **Guide VPS complet (pharmavie.space)** : voir [`DEPLOIEMENT_PHARMAVIE_SPACE.md`](./DEPLOIEMENT_PHARMAVIE_SPACE.md)  
+> Guide VPS générique : [`DEPLOIEMENT_VPS.md`](./DEPLOIEMENT_VPS.md)  
 > Fichiers Docker/Nginx : dossier [`deploy/`](./deploy/)
 
 Le projet n'inclut pas encore de Dockerfile applicatif complet. Voici l'architecture cible :

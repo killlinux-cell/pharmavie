@@ -38,6 +38,7 @@ COPY --from=builder /app/node_modules/@prisma node_modules/@prisma
 WORKDIR /app/apps/api
 
 RUN npx prisma generate
+RUN npm install -g tsx
 
 COPY deploy/scripts/api-entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
