@@ -5,4 +5,4 @@ echo ">> Prisma db push..."
 npx prisma db push --skip-generate
 
 echo ">> Démarrage API..."
-exec node dist/main.js
+exec node dist/src/main.js
