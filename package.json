@@ -1,0 +1,32 @@
+{
+  "name": "pharmavie",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Plateforme santé & pharmacie pour la Côte d'Ivoire",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c green,blue \"npm run dev -w @pharmavie/api\" \"npm run dev -w @pharmavie/web\"",
+    "dev:fresh": "npm run clean:web && npm run dev",
+    "dev:api": "npm run dev -w @pharmavie/api",
+    "dev:web": "npm run dev -w @pharmavie/web",
+    "clean:web": "node -e \"const fs=require('fs');['apps/web/.next','apps/web/node_modules/.cache'].forEach(p=>{try{fs.rmSync(p,{recursive:true,force:true})}catch(e){}})\"",
+    "build": "npm run build -w @pharmavie/api && npm run build -w @pharmavie/web",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "db:migrate": "npm run db:migrate -w @pharmavie/api",
+    "db:seed": "npm run db:seed -w @pharmavie/api",
+    "import:medprym": "npm run import:medprym -w @pharmavie/api",
+    "import:pharmacies": "npm run import:pharmacies -w @pharmavie/api",
+    "inventory:seed": "npm run inventory:seed -w @pharmavie/api",
+    "db:studio": "npm run db:studio -w @pharmavie/api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

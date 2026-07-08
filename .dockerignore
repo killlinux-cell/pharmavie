@@ -1,0 +1,17 @@
+node_modules
+**/node_modules
+.git
+.next
+**/.next
+dist
+**/dist
+*.md
+.env
+.env.*
+!.env.example
+!deploy/.env.production.example
+apps/mobile
+apps/api/uploads
+**/*.log
+.cursor
+agent-transcripts

@@ -1,0 +1,393 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CLIENT
+  PHARMACIST
+  PHARMACY_STAFF
+  ADMIN
+  DELIVERY
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  PREPARING
+  READY
+  DELIVERING
+  DELIVERED
+  CANCELLED
+  REJECTED
+}
+
+enum OrderType {
+  PICKUP
+  DELIVERY
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  ORANGE_MONEY
+  MTN_MOMO
+  WAVE
+  CASH
+}
+
+enum PrescriptionStatus {
+  PENDING
+  VALIDATED
+  REJECTED
+}
+
+enum PharmacySource {
+  SEED
+  OSM
+  UNPPCI
+  MANUAL
+}
+
+enum PriceReportStatus {
+  PENDING
+  REVIEWED
+  DISMISSED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  email     String?  @unique
+  firstName String?
+  lastName  String?
+  role      UserRole @default(CLIENT)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  pharmacyStaff PharmacyStaff[]
+  orders        Order[]
+  addresses     Address[]
+  aiSessions    AiSession[]
+  prescriptions Prescription[]
+  favoritePharmacies FavoritePharmacy[]
+  reviews       Review[]
+  notificationPreference NotificationPreference?
+  priceReports  PriceReport[]
+
+  @@map("users")
+}
+
+model Address {
+  id         String   @id @default(cuid())
+  userId     String
+  label      String?
+  street     String
+  city       String   @default("Abidjan")
+  district   String?
+  latitude   Float?
+  longitude  Float?
+  isDefault  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("addresses")
+}
+
+model Pharmacy {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  phone       String
+  email       String?
+  street      String
+  city        String   @default("Abidjan")
+  district    String?
+  latitude    Float
+  longitude   Float
+  isOnDuty    Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  rating      Float    @default(0)
+  reviewCount Int      @default(0)
+  openTime    String?  // "08:00"
+  closeTime   String?  // "20:00"
+  licenseNo   String?
+  source      PharmacySource @default(MANUAL)
+  osmId       String?        @unique
+  sector      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  staff    PharmacyStaff[]
+  products PharmacyProduct[]
+  orders   Order[]
+  favorites FavoritePharmacy[]
+  reviews  Review[]
+  dutyEntries PharmacyDutyEntry[]
+  priceReports PriceReport[]
+
+  @@map("pharmacies")
+}
+
+model PharmacyStaff {
+  id         String   @id @default(cuid())
+  userId     String
+  pharmacyId String
+  role       UserRole @default(PHARMACY_STAFF)
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pharmacyId])
+  @@map("pharmacy_staff")
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  name        String
+  dci         String?
+  description String?
+  category    String?
+  barcode     String?  @unique
+  airpAuth    String?  @unique
+  atcCode     String?
+  laboratory  String?
+  requiresRx  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pharmacyProducts PharmacyProduct[]
+  orderItems       OrderItem[]
+  priceReports     PriceReport[]
+
+  @@index([name])
+  @@index([dci])
+  @@index([laboratory])
+  @@map("products")
+}
+
+model PharmacyProduct {
+  id         String   @id @default(cuid())
+  pharmacyId String
+  productId  String
+  price      Int      // en FCFA
+  quantity   Int      @default(0)
+  isAvailable Boolean @default(true)
+  updatedAt  DateTime @updatedAt
+
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([pharmacyId, productId])
+  @@map("pharmacy_products")
+}
+
+model Order {
+  id              String      @id @default(cuid())
+  orderNumber     String      @unique
+  userId          String
+  pharmacyId      String
+  prescriptionId  String?
+  status          OrderStatus @default(NEW)
+  type            OrderType   @default(PICKUP)
+  subtotal        Int
+  deliveryFee     Int         @default(0)
+  total           Int
+  deliveryAddress String?
+  notes           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id])
+  pharmacy     Pharmacy      @relation(fields: [pharmacyId], references: [id])
+  prescription Prescription? @relation(fields: [prescriptionId], references: [id], onDelete: SetNull)
+  items        OrderItem[]
+  payment      Payment?
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Int
+  unitPrice Int
+  total     Int
+
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  orderId       String        @unique
+  method        PaymentMethod
+  status        PaymentStatus @default(PENDING)
+  amount        Int
+  phone         String?
+  transactionId String?
+  providerRef   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@map("payments")
+}
+
+model AiSession {
+  id        String   @id @default(cuid())
+  userId    String?
+  messages  Json     @default("[]")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("ai_sessions")
+}
+
+model Prescription {
+  id           String             @id @default(cuid())
+  userId       String
+  imageUrl     String
+  fileName     String
+  mimeType     String?
+  fileSize     Int?
+  status       PrescriptionStatus @default(PENDING)
+  notes        String?
+  rejectReason String?
+  pharmacyId   String?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId])
+  @@map("prescriptions")
+}
+
+model FavoritePharmacy {
+  id         String   @id @default(cuid())
+  userId     String
+  pharmacyId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pharmacyId])
+  @@map("favorite_pharmacies")
+}
+
+model Review {
+  id         String   @id @default(cuid())
+  userId     String
+  pharmacyId String
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, pharmacyId])
+  @@map("reviews")
+}
+
+model NotificationPreference {
+  userId       String   @id
+  orderStatus  Boolean  @default(true)
+  promotions   Boolean  @default(false)
+  reminders    Boolean  @default(true)
+  pharmacyNews Boolean  @default(false)
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+model Specialist {
+  id        String   @id @default(cuid())
+  name      String
+  specialty String
+  location  String
+  district  String
+  city      String   @default("Abidjan")
+  phone     String   @unique
+  rating    Float    @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([specialty])
+  @@index([district])
+  @@map("specialists")
+}
+
+model PharmacyDutyWeek {
+  id        String   @id @default(cuid())
+  weekStart DateTime @db.Date
+  weekEnd   DateTime @db.Date
+  source    String   @default("UNPPCI")
+  syncedAt  DateTime @default(now())
+  entries   PharmacyDutyEntry[]
+
+  @@unique([weekStart, weekEnd])
+  @@map("pharmacy_duty_weeks")
+}
+
+model PharmacyDutyEntry {
+  id         String   @id @default(cuid())
+  dutyWeekId String
+  pharmacyId String?
+  name       String
+  district   String
+  city       String   @default("Abidjan")
+  street     String?
+  phone      String?
+
+  dutyWeek PharmacyDutyWeek @relation(fields: [dutyWeekId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy?        @relation(fields: [pharmacyId], references: [id], onDelete: SetNull)
+
+  @@index([dutyWeekId])
+  @@index([pharmacyId])
+  @@map("pharmacy_duty_entries")
+}
+
+model PriceReport {
+  id            String            @id @default(cuid())
+  userId        String
+  pharmacyId    String
+  productId     String
+  reportedPrice Int
+  note          String?
+  status        PriceReportStatus @default(PENDING)
+  createdAt     DateTime          @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pharmacy Pharmacy @relation(fields: [pharmacyId], references: [id], onDelete: Cascade)
+  product  Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([pharmacyId])
+  @@index([productId])
+  @@map("price_reports")
+}

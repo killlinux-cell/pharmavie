@@ -1,0 +1,63 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage/
+
+# Flutter
+apps/mobile/.dart_tool/
+apps/mobile/.flutter-plugins
+apps/mobile/.flutter-plugins-dependencies
+apps/mobile/.packages
+apps/mobile/build/
+apps/mobile/.pub-cache/
+apps/mobile/.pub/
+apps/mobile/**/doc/api/
+apps/mobile/ios/Pods/
+apps/mobile/ios/.symlinks/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/debug/
+apps/mobile/android/app/profile/
+apps/mobile/android/app/release/
+
+# Prisma
+apps/api/prisma/migrations/**/migration_lock.toml
+
+# Uploads ordonnances
+apps/api/uploads/
+
+# Cache import MEDPRYM ( volumineux, regénérable )
+apps/api/prisma/data/medprym-cache.json
+
+# Docker
+postgres_data/
+redis_data/

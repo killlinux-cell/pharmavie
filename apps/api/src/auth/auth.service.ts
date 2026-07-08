@@ -1,0 +1,132 @@
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { JwtService } from '@nestjs/jwt';
+import { UserRole } from '@prisma/client';
+import Redis from 'ioredis';
+import { PrismaService } from '../prisma/prisma.service';
+import { REDIS_CLIENT } from '../redis/redis.module';
+import { SendOtpDto, VerifyOtpDto } from './dto/auth.dto';
+
+@Injectable()
+export class AuthService {
+  private readonly otpTtlSeconds = 300;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+  ) {}
+
+  async sendOtp(dto: SendOtpDto) {
+    const phone = this.normalizePhone(dto.phone);
+    const code = this.generateOtp();
+    await this.redis.setex(`otp:${phone}`, this.otpTtlSeconds, code);
+
+    // Dev: log OTP (production → Africa's Talking / Twilio)
+    console.log(`[OTP] ${phone} → ${code}`);
+
+    return {
+      success: true,
+      message: 'Code OTP envoyé',
+      data: {
+        phone,
+        expiresIn: this.otpTtlSeconds,
+        ...(process.env.NODE_ENV === 'development' ? { devCode: code } : {}),
+      },
+    };
+  }
+
+  async verifyOtp(dto: VerifyOtpDto) {
+    const phone = this.normalizePhone(dto.phone);
+    const stored = await this.redis.get(`otp:${phone}`);
+
+    if (!stored || stored !== dto.code) {
+      throw new UnauthorizedException('Code OTP invalide ou expiré');
+    }
+
+    await this.redis.del(`otp:${phone}`);
+
+    let user = await this.prisma.user.findUnique({ where: { phone } });
+    if (!user) {
+      user = await this.prisma.user.create({
+        data: {
+          phone,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          role: UserRole.CLIENT,
+        },
+      });
+    }
+
+    let pharmacyId: string | undefined;
+    if (['PHARMACIST', 'PHARMACY_STAFF'].includes(user.role)) {
+      const staff = await this.prisma.pharmacyStaff.findFirst({
+        where: { userId: user.id },
+      });
+      pharmacyId = staff?.pharmacyId;
+    }
+
+    const token = this.jwt.sign({
+      sub: user.id,
+      phone: user.phone,
+      role: user.role,
+      pharmacyId,
+    });
+
+    return {
+      success: true,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          phone: user.phone,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          pharmacyId,
+        },
+      },
+    };
+  }
+
+  async me(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        pharmacyStaff: { include: { pharmacy: true }, take: 1 },
+      },
+    });
+    if (!user) throw new UnauthorizedException();
+
+    const staff = user.pharmacyStaff[0];
+
+    return {
+      success: true,
+      data: {
+        id: user.id,
+        phone: user.phone,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        pharmacyId: staff?.pharmacyId,
+        pharmacy: staff?.pharmacy ?? null,
+      },
+    };
+  }
+
+  normalizePhone(phone: string): string {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.startsWith('225')) return `+${digits}`;
+    if (digits.length === 10) return `+225${digits.slice(-10)}`;
+    if (digits.length === 8) return `+225${digits}`;
+    throw new BadRequestException('Format de numéro invalide');
+  }
+
+  private generateOtp(): string {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  }
+}
