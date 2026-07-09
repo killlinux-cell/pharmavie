@@ -2,26 +2,25 @@ module.exports = {
   apps: [
     {
       name: 'pharmavie-api',
-      cwd: '/opt/pharmavie/apps/api',
-      script: 'dist/src/main.js',
+      script: '/opt/pharmavie/deploy/simple/start-api.sh',
+      interpreter: 'bash',
+      exec_mode: 'fork',
       instances: 1,
       autorestart: true,
       max_memory_restart: '500M',
-      env: {
-        NODE_ENV: 'production',
-      },
+      max_restarts: 10,
+      min_uptime: '5s',
     },
     {
       name: 'pharmavie-web',
-      cwd: '/opt/pharmavie/apps/web',
-      script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 3000',
+      script: '/opt/pharmavie/deploy/simple/start-web.sh',
+      interpreter: 'bash',
+      exec_mode: 'fork',
       instances: 1,
       autorestart: true,
       max_memory_restart: '500M',
-      env: {
-        NODE_ENV: 'production',
-      },
+      max_restarts: 10,
+      min_uptime: '5s',
     },
   ],
 };

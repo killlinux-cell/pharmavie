@@ -119,6 +119,14 @@ NODE_ENV=${NODE_ENV}
 OPENAI_API_KEY=${OPENAI_API_KEY:-}
 CINETPAY_API_KEY=${CINETPAY_API_KEY:-}
 CINETPAY_SITE_ID=${CINETPAY_SITE_ID:-}
+SMS_PROVIDER=${SMS_PROVIDER:-twilio}
+TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID:-}
+TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN:-}
+TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER:-}
+TWILIO_MESSAGING_SERVICE_SID=${TWILIO_MESSAGING_SERVICE_SID:-}
+AFRICASTALKING_USERNAME=${AFRICASTALKING_USERNAME:-}
+AFRICASTALKING_API_KEY=${AFRICASTALKING_API_KEY:-}
+SMS_SENDER_ID=${SMS_SENDER_ID:-PharmaVie}
 EOF
 
 cat > "$ROOT/apps/web/.env.local" <<EOF
@@ -245,6 +253,8 @@ fi
 # --- PM2 ---
 next "Démarrage API + Web (PM2)"
 
+chmod +x "$ROOT/deploy/simple/start-api.sh" "$ROOT/deploy/simple/start-web.sh" 2>/dev/null || true
+
 pm2 delete pharmavie-api 2>/dev/null || true
 pm2 delete pharmavie-web 2>/dev/null || true
 pm2 start "$ECOSYSTEM"
@@ -259,14 +269,25 @@ if ! pm2 ping &>/dev/null || ! test -f /etc/systemd/system/pm2-root.service; the
   pm2 save
 fi
 
-sleep 3
+sleep 5
 pm2 status
 
-# Test local
-if curl -sf http://127.0.0.1:3001/api/v1/health > /dev/null; then
+# Test local (avec retry)
+log "Attente API..."
+API_OK=false
+for i in $(seq 1 20); do
+  if curl -sf http://127.0.0.1:3001/api/v1/health > /dev/null 2>&1; then
+    API_OK=true
+    break
+  fi
+  sleep 2
+done
+
+if [[ "$API_OK" == true ]]; then
   ok "API répond sur :3001"
 else
-  warn "API ne répond pas encore — vérifiez : pm2 logs pharmavie-api"
+  warn "API ne répond pas — lancez : bash deploy/simple/doctor.sh"
+  pm2 logs pharmavie-api --lines 30 --nostream || true
 fi
 
 # --- Nginx ---

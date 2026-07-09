@@ -15,12 +15,14 @@ import { PrescriptionsModule } from './prescriptions/prescriptions.module';
 import { AdminModule } from './admin/admin.module';
 import { UsersModule } from './users/users.module';
 import { SpecialistsModule } from './specialists/specialists.module';
+import { SmsModule } from './sms/sms.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    SmsModule,
     PrismaModule,
     RedisModule,
     AuthModule,

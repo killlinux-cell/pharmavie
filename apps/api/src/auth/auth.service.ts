@@ -8,6 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import { UserRole } from '@prisma/client';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
+import { SmsService } from '../sms/sms.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import { SendOtpDto, VerifyOtpDto } from './dto/auth.dto';
 
@@ -18,6 +19,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
+    private readonly sms: SmsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
@@ -26,16 +28,20 @@ export class AuthService {
     const code = this.generateOtp();
     await this.redis.setex(`otp:${phone}`, this.otpTtlSeconds, code);
 
-    // Dev: log OTP (production → Africa's Talking / Twilio)
-    console.log(`[OTP] ${phone} → ${code}`);
+    let smsSent = false;
+    try {
+      smsSent = await this.sms.sendOtp(phone, code);
+    } catch {
+      throw new BadRequestException('Envoi SMS impossible. Réessayez dans quelques minutes.');
+    }
 
     return {
       success: true,
-      message: 'Code OTP envoyé',
+      message: smsSent ? 'Code OTP envoyé par SMS' : 'Code OTP envoyé',
       data: {
         phone,
         expiresIn: this.otpTtlSeconds,
-        ...(process.env.NODE_ENV === 'development' ? { devCode: code } : {}),
+        ...(!smsSent && process.env.NODE_ENV !== 'production' ? { devCode: code } : {}),
       },
     };
   }

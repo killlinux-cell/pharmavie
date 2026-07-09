@@ -1,7 +1,7 @@
 /// URL API — Android émulateur : 10.0.2.2 | iOS simulateur / web : localhost
 const String kApiBaseUrl = String.fromEnvironment(
   'API_URL',
-  defaultValue: 'http://192.168.1.68:3001/api/v1',
+  defaultValue: 'https://api.pharmavie.space/api/v1',
 );
 
 /// URL racine serveur (fichiers statiques /uploads)
