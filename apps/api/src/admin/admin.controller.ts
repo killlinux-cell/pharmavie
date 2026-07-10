@@ -27,8 +27,8 @@ export class AdminController {
   }
 
   @Get('pharmacies')
-  listPharmacies(@Query('activeOnly') activeOnly?: string) {
-    return this.adminService.listPharmacies(activeOnly !== 'true');
+  listPharmacies(@Query('activeOnly') activeOnly?: string, @Query('q') q?: string) {
+    return this.adminService.listPharmacies(activeOnly !== 'true', q);
   }
 
   @Post('pharmacies')

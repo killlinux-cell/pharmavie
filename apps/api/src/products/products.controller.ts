@@ -49,7 +49,7 @@ export class ProductsController {
 
   @Get('catalog')
   @Roles(UserRole.PHARMACIST, UserRole.PHARMACY_STAFF, UserRole.ADMIN)
-  catalog(@Query('q') q?: string) {
-    return this.productsService.catalog(q);
+  catalog(@Query('q') q?: string, @Query('limit') limit?: string) {
+    return this.productsService.catalog(q, limit ? parseInt(limit, 10) : undefined);
   }
 }

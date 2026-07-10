@@ -242,9 +242,17 @@ else
 fi
 
 if [[ "$FULL_DATA" == true ]]; then
+  next "Import catalogue médicaments AIRP/MEDPRYM (10-60 min)"
+  if [[ -f "$ROOT/apps/api/prisma/data/medprym-cache.json" ]]; then
+    npm run import:medprym -w @pharmavie/api -- --import-only
+  else
+    npm run import:medprym -w @pharmavie/api
+  fi
+  ok "Catalogue médicaments importé"
+
   next "Import pharmacies + inventaire (15-30 min)"
   npm run import:pharmacies -w @pharmavie/api
-  npm run inventory:seed -w @pharmavie/api
+  npm run inventory:seed -w @pharmavie/api -- --products=500
   ok "Données complètes importées"
 else
   warn "Import pharmacies non lancé. Pour les ajouter : bash deploy/simple/deploy.sh --full-data"

@@ -25,12 +25,19 @@ const NEXT_STATUS: Record<string, { status: string; label: string }[]> = {
   DELIVERING: [{ status: 'DELIVERED', label: 'Livrée' }],
 };
 
+const CANCELLABLE = new Set(['CONFIRMED', 'PREPARING', 'READY']);
+const DELETABLE = new Set(['NEW', 'REJECTED', 'CANCELLED', 'CONFIRMED', 'PREPARING', 'READY']);
+
 export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [rejectId, setRejectId] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  const [cancelId, setCancelId] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
 
   async function loadOrders() {
     const res = await api<{ data: Order[] }>('/orders');
@@ -45,6 +52,7 @@ export default function OrdersPage() {
 
   async function updateStatus(id: string, status: string, reason?: string) {
     setError('');
+    setActionLoading(id + status);
     try {
       await api(`/orders/${id}/status`, {
         method: 'PATCH',
@@ -52,9 +60,27 @@ export default function OrdersPage() {
       });
       setRejectId(null);
       setRejectReason('');
+      setCancelId(null);
+      setCancelReason('');
       await loadOrders();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur mise à jour');
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  async function deleteOrder(id: string) {
+    setError('');
+    setActionLoading(id + 'delete');
+    try {
+      await api(`/orders/${id}`, { method: 'DELETE' });
+      setDeleteId(null);
+      await loadOrders();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Erreur suppression');
+    } finally {
+      setActionLoading(null);
     }
   }
 
@@ -98,12 +124,31 @@ export default function OrdersPage() {
                 Refuser
               </button>
             )}
+            {CANCELLABLE.has(order.status) && (
+              <button
+                type="button"
+                onClick={() => setCancelId(order.id)}
+                className="rounded-xl border border-amber-200 px-3 py-1.5 text-xs text-amber-700 hover:bg-amber-50"
+              >
+                Annuler
+              </button>
+            )}
+            {DELETABLE.has(order.status) && (
+              <button
+                type="button"
+                onClick={() => setDeleteId(order.id)}
+                className="rounded-xl border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+              >
+                Supprimer
+              </button>
+            )}
             {(NEXT_STATUS[order.status] ?? []).map((action) => (
               <button
                 key={action.status}
                 type="button"
+                disabled={actionLoading === order.id + action.status}
                 onClick={() => updateStatus(order.id, action.status)}
-                className="btn-secondary py-1.5 text-xs"
+                className="btn-secondary py-1.5 text-xs disabled:opacity-50"
               >
                 {action.label}
               </button>
@@ -126,13 +171,67 @@ export default function OrdersPage() {
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
+                disabled={actionLoading != null}
                 onClick={() => updateStatus(rejectId, 'REJECTED', rejectReason)}
-                className="btn-primary flex-1"
+                className="btn-primary flex-1 disabled:opacity-50"
               >
                 Confirmer le refus
               </button>
               <button type="button" onClick={() => setRejectId(null)} className="btn-secondary">
-                Annuler
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {cancelId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="card w-full max-w-md">
+            <h3 className="font-semibold text-slate-900">Annuler la commande</h3>
+            <p className="mt-1 text-sm text-slate-500">Le stock sera remis à jour automatiquement.</p>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              className="mt-3 w-full rounded-xl border border-surface-border px-3 py-2 text-sm"
+              placeholder="Motif d'annulation (optionnel)..."
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                disabled={actionLoading != null}
+                onClick={() => updateStatus(cancelId, 'CANCELLED', cancelReason)}
+                className="btn-primary flex-1 disabled:opacity-50"
+              >
+                Confirmer l&apos;annulation
+              </button>
+              <button type="button" onClick={() => setCancelId(null)} className="btn-secondary">
+                Fermer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="card w-full max-w-md">
+            <h3 className="font-semibold text-slate-900">Supprimer la commande</h3>
+            <p className="mt-2 text-sm text-slate-600">
+              Cette action est définitive. La commande sera retirée de l&apos;historique.
+            </p>
+            <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                disabled={actionLoading != null}
+                onClick={() => deleteOrder(deleteId)}
+                className="flex-1 rounded-xl bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                Supprimer définitivement
+              </button>
+              <button type="button" onClick={() => setDeleteId(null)} className="btn-secondary">
+                Fermer
               </button>
             </div>
           </div>

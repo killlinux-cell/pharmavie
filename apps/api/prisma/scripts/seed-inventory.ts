@@ -22,7 +22,7 @@ async function main() {
   const limitArg = args.find((a) => a.startsWith('--limit='));
   const productsArg = args.find((a) => a.startsWith('--products='));
   const pharmacyLimit = limitArg ? parseInt(limitArg.split('=')[1], 10) : undefined;
-  const productLimit = productsArg ? parseInt(productsArg.split('=')[1], 10) : 60;
+  const productLimit = productsArg ? parseInt(productsArg.split('=')[1], 10) : 500;
 
   console.log('🏪 PharmaVie — Seed inventaire pharmacies\n');
 

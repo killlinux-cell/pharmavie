@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
-import { MapPin, Plus, Pencil, RefreshCw } from 'lucide-react';
+import { MapPin, Plus, Pencil, RefreshCw, Search } from 'lucide-react';
 
 interface Pharmacy {
   id: string;
@@ -59,6 +59,18 @@ export default function AdminPharmaciesPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [dutyStatus, setDutyStatus] = useState<DutyStatus | null>(null);
   const [syncMsg, setSyncMsg] = useState('');
+  const [search, setSearch] = useState('');
+
+  const filteredList = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return list;
+    return list.filter((p) =>
+      [p.name, p.phone, p.street, p.city, p.district ?? '', p.email ?? '']
+        .join(' ')
+        .toLowerCase()
+        .includes(q),
+    );
+  }, [list, search]);
 
   function load() {
     api<{ data: Pharmacy[] }>('/admin/pharmacies')
@@ -197,7 +209,8 @@ export default function AdminPharmaciesPage() {
         <div>
           <h2 className="text-lg font-semibold text-white">Pharmacies</h2>
           <p className="text-sm text-slate-400">
-            Créez et gérez les pharmacies · {list.length} enregistrée(s)
+            Créez et gérez les pharmacies · {filteredList.length}
+            {search.trim() ? ` / ${list.length}` : ''} enregistrée(s)
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -245,6 +258,17 @@ export default function AdminPharmaciesPage() {
       {syncMsg && <p className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-400">{syncMsg}</p>}
 
       {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-400">{error}</p>}
+
+      <div className="relative max-w-md">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Rechercher par nom, téléphone, adresse, ville..."
+          className="w-full rounded-lg border border-slate-700 bg-slate-900 py-2.5 pl-10 pr-3 text-sm text-white placeholder:text-slate-500"
+        />
+      </div>
 
       {staffPharmacyId && (
         <form onSubmit={assignStaff} className="rounded-xl border border-slate-700 bg-slate-900 p-5 space-y-3">
@@ -355,7 +379,14 @@ export default function AdminPharmaciesPage() {
             </tr>
           </thead>
           <tbody>
-            {list.map((p) => (
+            {filteredList.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="p-6 text-center text-slate-500">
+                  {search.trim() ? 'Aucune pharmacie ne correspond à votre recherche' : 'Aucune pharmacie'}
+                </td>
+              </tr>
+            ) : (
+              filteredList.map((p) => (
               <tr key={p.id} className="border-t border-slate-800 bg-slate-900/50">
                 <td className="p-3">
                   <p className="font-medium text-white">{p.name}</p>
@@ -410,7 +441,8 @@ export default function AdminPharmaciesPage() {
                   </button>
                 </td>
               </tr>
-            ))}
+            ))
+            )}
           </tbody>
         </table>
       </div>

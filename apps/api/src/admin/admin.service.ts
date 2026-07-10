@@ -121,9 +121,26 @@ export class AdminService {
     };
   }
 
-  async listPharmacies(includeInactive = true) {
+  async listPharmacies(includeInactive = true, query?: string) {
+    const q = query?.trim();
+    const searchFilter = q
+      ? {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' as const } },
+            { phone: { contains: q, mode: 'insensitive' as const } },
+            { street: { contains: q, mode: 'insensitive' as const } },
+            { city: { contains: q, mode: 'insensitive' as const } },
+            { district: { contains: q, mode: 'insensitive' as const } },
+            { email: { contains: q, mode: 'insensitive' as const } },
+          ],
+        }
+      : undefined;
+
     const pharmacies = await this.prisma.pharmacy.findMany({
-      where: includeInactive ? undefined : { isActive: true },
+      where: {
+        ...(includeInactive ? {} : { isActive: true }),
+        ...(searchFilter ?? {}),
+      },
       include: {
         _count: { select: { products: true, orders: true, staff: true } },
       },

@@ -84,7 +84,9 @@ export default function InventoryPage() {
       setCatalog([]);
       return;
     }
-    const res = await api<{ data: CatalogProduct[] }>(`/products/catalog?q=${encodeURIComponent(q)}`);
+    const res = await api<{ data: CatalogProduct[] }>(
+      `/products/catalog?q=${encodeURIComponent(q)}&limit=200`,
+    );
     setCatalog(res.data);
   }
 

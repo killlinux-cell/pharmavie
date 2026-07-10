@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { UserRole } from '@prisma/client';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto, UpdateOrderStatusDto } from './dto/orders.dto';
@@ -42,5 +42,11 @@ export class OrdersController {
     @Body() dto: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateStatus(user, id, dto);
+  }
+
+  @Delete(':id')
+  @Roles(UserRole.PHARMACIST, UserRole.PHARMACY_STAFF)
+  remove(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.ordersService.remove(user, id);
   }
 }

@@ -279,18 +279,21 @@ export class ProductsService {
     };
   }
 
-  async catalog(query?: string) {
+  async catalog(query?: string, limit = 200) {
+    const take = Math.min(Math.max(limit, 1), 500);
     const products = await this.prisma.product.findMany({
       where: query
         ? {
             OR: [
               { name: { contains: query, mode: 'insensitive' } },
               { dci: { contains: query, mode: 'insensitive' } },
+              { barcode: { contains: query, mode: 'insensitive' } },
+              { airpAuth: { contains: query, mode: 'insensitive' } },
             ],
           }
         : undefined,
       orderBy: { name: 'asc' },
-      take: 50,
+      take,
     });
     return { success: true, data: products };
   }

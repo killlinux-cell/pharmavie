@@ -270,6 +270,59 @@ export class OrdersService {
     return { success: true, data: this.formatOrder(updated) };
   }
 
+  private readonly DELETABLE_STATUSES: OrderStatus[] = [
+    OrderStatus.NEW,
+    OrderStatus.REJECTED,
+    OrderStatus.CANCELLED,
+    OrderStatus.CONFIRMED,
+    OrderStatus.PREPARING,
+    OrderStatus.READY,
+  ];
+
+  private readonly STOCK_RESTORED_STATUSES: OrderStatus[] = [
+    OrderStatus.REJECTED,
+    OrderStatus.CANCELLED,
+  ];
+
+  async remove(user: AuthUser, id: string) {
+    const order = await this.prisma.order.findUnique({ where: { id } });
+    if (!order) throw new NotFoundException('Commande introuvable');
+
+    if (order.pharmacyId !== user.pharmacyId) {
+      throw new ForbiddenException('Cette commande appartient à une autre pharmacie');
+    }
+
+    if (!this.DELETABLE_STATUSES.includes(order.status)) {
+      throw new BadRequestException(
+        'Seules les commandes non livrées peuvent être supprimées',
+      );
+    }
+
+    const shouldRestoreStock = !this.STOCK_RESTORED_STATUSES.includes(order.status);
+
+    await this.prisma.$transaction(async (tx) => {
+      if (shouldRestoreStock) {
+        const items = await tx.orderItem.findMany({ where: { orderId: id } });
+        for (const line of items) {
+          const row = await tx.pharmacyProduct.findFirst({
+            where: { pharmacyId: order.pharmacyId, productId: line.productId },
+          });
+          if (row) {
+            const newQty = row.quantity + line.quantity;
+            await tx.pharmacyProduct.update({
+              where: { id: row.id },
+              data: stockUpdateData(newQty, true),
+            });
+          }
+        }
+      }
+
+      await tx.order.delete({ where: { id } });
+    });
+
+    return { success: true, data: { id } };
+  }
+
   async getStats(pharmacyId: string) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
