@@ -6,33 +6,12 @@ import { api, setStoredUser, setToken } from '@/lib/api';
 
 export default function LoginPage() {
   const router = useRouter();
-  const [phone, setPhone] = useState('+22507');
-  const [code, setCode] = useState('');
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [devCode, setDevCode] = useState('');
+  const [login, setLogin] = useState('pharmacie-plateau');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function sendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const res = await api<{ data: { devCode?: string } }>('/auth/otp/send', {
-        method: 'POST',
-        body: JSON.stringify({ phone }),
-        token: null,
-      });
-      if (res.data.devCode) setDevCode(res.data.devCode);
-      setStep('otp');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur envoi OTP');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function verifyOtp(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
@@ -42,9 +21,9 @@ export default function LoginPage() {
           token: string;
           user: { id: string; phone: string; role: string; pharmacyId?: string; firstName?: string; lastName?: string };
         };
-      }>('/auth/otp/verify', {
+      }>('/auth/login/staff', {
         method: 'POST',
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ login, password }),
         token: null,
       });
 
@@ -79,7 +58,7 @@ export default function LoginPage() {
         setError('Ce compte est un compte client. Utilisez l\'app mobile.');
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Code invalide');
+      setError(err instanceof Error ? err.message : 'Identifiants incorrects');
     } finally {
       setLoading(false);
     }
@@ -98,62 +77,43 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {step === 'phone' ? (
-          <form onSubmit={sendOtp} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Numéro de téléphone (+225)
-              </label>
-              <input
-                type="tel"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="w-full rounded-xl border border-surface-border px-4 py-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
-                placeholder="+2250700000002"
-                required
-              />
-              <p className="mt-1.5 text-xs text-slate-400">
-                Compte test pharmacien : +2250700000002
-              </p>
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <button type="submit" disabled={loading} className="btn-primary w-full py-3">
-              {loading ? 'Envoi...' : 'Recevoir le code OTP'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={verifyOtp} className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                Code OTP (6 chiffres)
-              </label>
-              <input
-                type="text"
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                className="w-full rounded-xl border border-surface-border px-4 py-3 text-center text-lg tracking-widest outline-none focus:border-brand-500"
-                maxLength={6}
-                required
-              />
-              {devCode && (
-                <p className="mt-2 rounded-lg bg-brand-50 p-2 text-center text-sm text-brand-700">
-                  Code dev : <strong>{devCode}</strong>
-                </p>
-              )}
-            </div>
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <button type="submit" disabled={loading} className="btn-primary w-full py-3">
-              {loading ? 'Vérification...' : 'Se connecter'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setStep('phone')}
-              className="w-full text-sm text-slate-500 hover:text-brand-600"
-            >
-              Changer de numéro
-            </button>
-          </form>
-        )}
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Email ou pseudo
+            </label>
+            <input
+              type="text"
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+              className="w-full rounded-xl border border-surface-border px-4 py-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              placeholder="pharmacie-plateau"
+              autoComplete="username"
+              required
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
+              Mot de passe
+            </label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-xl border border-surface-border px-4 py-3 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100"
+              placeholder="••••••••"
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          <p className="text-xs text-slate-400">
+            Comptes test : <strong>pharmacie-plateau</strong>, pharmacie-cocody, pharmacie-marcory
+          </p>
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <button type="submit" disabled={loading} className="btn-primary w-full py-3">
+            {loading ? 'Connexion...' : 'Se connecter'}
+          </button>
+        </form>
       </div>
     </div>
   );

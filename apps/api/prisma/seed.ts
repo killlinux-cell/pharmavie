@@ -6,9 +6,11 @@ import {
   PrismaClient,
   UserRole,
 } from '@prisma/client';
+import { hashPassword } from '../src/auth/password.util';
 import { MEDICAMENTS_CI } from './data/medicaments-ci';
 
 const prisma = new PrismaClient();
+const DEFAULT_STAFF_PASSWORD = 'PharmaVie2026!';
 
 function randomQty(min: number, max: number) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -136,11 +138,21 @@ async function main() {
     }
   }
 
+  const staffPasswordHash = await hashPassword(DEFAULT_STAFF_PASSWORD);
+
   const admin = await prisma.user.upsert({
     where: { phone: '+2250700000099' },
-    update: {},
+    update: {
+      email: 'admin@pharmavie.space',
+      username: 'admin',
+      passwordHash: staffPasswordHash,
+      role: UserRole.ADMIN,
+    },
     create: {
       phone: '+2250700000099',
+      email: 'admin@pharmavie.space',
+      username: 'admin',
+      passwordHash: staffPasswordHash,
       firstName: 'Admin',
       lastName: 'PharmaVie',
       role: UserRole.ADMIN,
@@ -149,9 +161,19 @@ async function main() {
 
   const pharmacist = await prisma.user.upsert({
     where: { phone: '+2250700000002' },
-    update: { role: UserRole.PHARMACIST, firstName: 'Kouamé', lastName: 'Pharmacien' },
+    update: {
+      role: UserRole.PHARMACIST,
+      firstName: 'Kouamé',
+      lastName: 'Pharmacien',
+      email: 'plateau@pharmavie.space',
+      username: 'pharmacie-plateau',
+      passwordHash: staffPasswordHash,
+    },
     create: {
       phone: '+2250700000002',
+      email: 'plateau@pharmavie.space',
+      username: 'pharmacie-plateau',
+      passwordHash: staffPasswordHash,
       firstName: 'Kouamé',
       lastName: 'Pharmacien',
       role: UserRole.PHARMACIST,
@@ -166,9 +188,19 @@ async function main() {
 
   const pharmacistCocody = await prisma.user.upsert({
     where: { phone: '+2250700000022' },
-    update: { role: UserRole.PHARMACIST, firstName: 'Aminata', lastName: 'Cocody' },
+    update: {
+      role: UserRole.PHARMACIST,
+      firstName: 'Aminata',
+      lastName: 'Cocody',
+      email: 'cocody@pharmavie.space',
+      username: 'pharmacie-cocody',
+      passwordHash: staffPasswordHash,
+    },
     create: {
       phone: '+2250700000022',
+      email: 'cocody@pharmavie.space',
+      username: 'pharmacie-cocody',
+      passwordHash: staffPasswordHash,
       firstName: 'Aminata',
       lastName: 'Cocody',
       role: UserRole.PHARMACIST,
@@ -183,9 +215,19 @@ async function main() {
 
   const pharmacistMarcory = await prisma.user.upsert({
     where: { phone: '+2250700000023' },
-    update: { role: UserRole.PHARMACIST, firstName: 'Jean', lastName: 'Marcory' },
+    update: {
+      role: UserRole.PHARMACIST,
+      firstName: 'Jean',
+      lastName: 'Marcory',
+      email: 'marcory@pharmavie.space',
+      username: 'pharmacie-marcory',
+      passwordHash: staffPasswordHash,
+    },
     create: {
       phone: '+2250700000023',
+      email: 'marcory@pharmavie.space',
+      username: 'pharmacie-marcory',
+      passwordHash: staffPasswordHash,
       firstName: 'Jean',
       lastName: 'Marcory',
       role: UserRole.PHARMACIST,
@@ -268,11 +310,11 @@ async function main() {
   console.log('Seed terminé :');
   console.log(`- ${pharmacies.length} pharmacies`);
   console.log(`- ${products.length} médicaments CI (AIRP/LNME)`);
-  console.log(`- Pharmacien Plateau OTP: ${pharmacist.phone}`);
-  console.log(`- Pharmacien Cocody OTP: ${pharmacistCocody.phone}`);
-  console.log(`- Pharmacien Marcory OTP: ${pharmacistMarcory.phone}`);
-  console.log(`- Client OTP: ${client.phone}`);
-  console.log(`- Admin: ${admin.phone}`);
+  console.log(`- Admin web: admin@pharmavie.space / mot de passe: ${DEFAULT_STAFF_PASSWORD}`);
+  console.log(`- Pharmacie Plateau: pharmacie-plateau / ${DEFAULT_STAFF_PASSWORD}`);
+  console.log(`- Pharmacie Cocody: pharmacie-cocody / ${DEFAULT_STAFF_PASSWORD}`);
+  console.log(`- Pharmacie Marcory: pharmacie-marcory / ${DEFAULT_STAFF_PASSWORD}`);
+  console.log(`- Client mobile OTP: ${client.phone}`);
   console.log(`- 2 commandes exemple`);
 
   const specialistsSeed = [

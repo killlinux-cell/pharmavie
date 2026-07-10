@@ -10,7 +10,8 @@ import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { SmsService } from '../sms/sms.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
-import { SendOtpDto, VerifyOtpDto } from './dto/auth.dto';
+import { LoginDto, SendOtpDto, VerifyOtpDto } from './dto/auth.dto';
+import { verifyPassword } from './password.util';
 
 @Injectable()
 export class AuthService {
@@ -68,6 +69,50 @@ export class AuthService {
       });
     }
 
+    return this.issueToken(user);
+  }
+
+  async loginStaff(dto: LoginDto) {
+    return this.loginWithPassword(dto, [UserRole.PHARMACIST, UserRole.PHARMACY_STAFF]);
+  }
+
+  async loginAdmin(dto: LoginDto) {
+    return this.loginWithPassword(dto, [UserRole.ADMIN]);
+  }
+
+  private async loginWithPassword(dto: LoginDto, allowedRoles: UserRole[]) {
+    const login = dto.login.trim().toLowerCase();
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        isActive: true,
+        OR: [{ email: login }, { username: login }],
+      },
+    });
+
+    if (!user?.passwordHash) {
+      throw new UnauthorizedException('Identifiants incorrects');
+    }
+
+    const valid = await verifyPassword(dto.password, user.passwordHash);
+    if (!valid) {
+      throw new UnauthorizedException('Identifiants incorrects');
+    }
+
+    if (!allowedRoles.includes(user.role)) {
+      throw new UnauthorizedException('Accès non autorisé pour ce compte');
+    }
+
+    return this.issueToken(user);
+  }
+
+  private async issueToken(user: {
+    id: string;
+    phone: string;
+    firstName: string | null;
+    lastName: string | null;
+    role: UserRole;
+  }) {
     let pharmacyId: string | undefined;
     if (['PHARMACIST', 'PHARMACY_STAFF'].includes(user.role)) {
       const staff = await this.prisma.pharmacyStaff.findFirst({

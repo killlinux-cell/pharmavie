@@ -7,40 +7,19 @@ import { api, setStoredUser, setToken } from '@/lib/api';
 
 export default function AdminLoginPage() {
   const router = useRouter();
-  const [phone, setPhone] = useState('+2250700000099');
-  const [code, setCode] = useState('');
-  const [step, setStep] = useState<'phone' | 'otp'>('phone');
-  const [devCode, setDevCode] = useState('');
+  const [login, setLogin] = useState('admin@pharmavie.space');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  async function sendOtp(e: React.FormEvent) {
+  async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError('');
     try {
-      const res = await api<{ data: { devCode?: string } }>('/auth/otp/send', {
+      const res = await api<{ data: { token: string; user: { role: string } } }>('/auth/login/admin', {
         method: 'POST',
-        body: JSON.stringify({ phone }),
-        token: null,
-      });
-      if (res.data.devCode) setDevCode(res.data.devCode);
-      setStep('otp');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur');
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function verifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const res = await api<{ data: { token: string; user: { role: string } } }>('/auth/otp/verify', {
-        method: 'POST',
-        body: JSON.stringify({ phone, code }),
+        body: JSON.stringify({ login, password }),
         token: null,
       });
 
@@ -54,7 +33,7 @@ export default function AdminLoginPage() {
       setStoredUser(me.data);
       router.replace('/admin');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Code invalide');
+      setError(err instanceof Error ? err.message : 'Identifiants incorrects');
     } finally {
       setLoading(false);
     }
@@ -73,43 +52,39 @@ export default function AdminLoginPage() {
           </div>
         </div>
 
-        {step === 'phone' ? (
-          <form onSubmit={sendOtp} className="space-y-4">
-            <input
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-amber-500"
-              placeholder="+2250700000099"
-              required
-            />
-            <p className="text-xs text-slate-500">Compte test admin : +2250700000099</p>
-            {error && <p className="text-sm text-red-400">{error}</p>}
-            <button type="submit" disabled={loading} className="w-full rounded-xl bg-amber-500 py-3 font-semibold text-slate-900">
-              {loading ? 'Envoi...' : 'Recevoir OTP'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={verifyOtp} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="mb-1.5 block text-sm text-slate-400">Email ou pseudo</label>
             <input
               type="text"
-              value={code}
-              onChange={(e) => setCode(e.target.value)}
-              className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-center text-lg tracking-widest text-white"
-              maxLength={6}
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-amber-500"
+              placeholder="admin@pharmavie.space"
+              autoComplete="username"
               required
             />
-            {devCode && (
-              <p className="rounded-lg bg-amber-500/10 p-2 text-center text-sm text-amber-400">
-                Code dev : <strong>{devCode}</strong>
-              </p>
-            )}
-            {error && <p className="text-sm text-red-400">{error}</p>}
-            <button type="submit" disabled={loading} className="w-full rounded-xl bg-amber-500 py-3 font-semibold text-slate-900">
-              {loading ? 'Connexion...' : 'Accéder au portail'}
-            </button>
-          </form>
-        )}
+          </div>
+          <div>
+            <label className="mb-1.5 block text-sm text-slate-400">Mot de passe</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-white outline-none focus:border-amber-500"
+              placeholder="••••••••"
+              autoComplete="current-password"
+              required
+            />
+          </div>
+          <p className="text-xs text-slate-500">
+            Compte test : admin@pharmavie.space ou pseudo <strong>admin</strong>
+          </p>
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          <button type="submit" disabled={loading} className="w-full rounded-xl bg-amber-500 py-3 font-semibold text-slate-900">
+            {loading ? 'Connexion...' : 'Se connecter'}
+          </button>
+        </form>
       </div>
     </div>
   );

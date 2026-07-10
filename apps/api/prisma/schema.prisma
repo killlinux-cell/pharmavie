@@ -65,15 +65,17 @@ enum PriceReportStatus {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  phone     String   @unique
-  email     String?  @unique
-  firstName String?
-  lastName  String?
-  role      UserRole @default(CLIENT)
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  phone        String   @unique
+  email        String?  @unique
+  username     String?  @unique
+  passwordHash String?
+  firstName    String?
+  lastName     String?
+  role         UserRole @default(CLIENT)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   pharmacyStaff PharmacyStaff[]
   orders        Order[]

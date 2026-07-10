@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { SendOtpDto, VerifyOtpDto } from './dto/auth.dto';
+import { SendOtpDto, VerifyOtpDto, LoginDto } from './dto/auth.dto';
 import { Public } from '../common/decorators/auth.decorators';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { AuthUser } from '../common/decorators/current-user.decorator';
@@ -19,6 +19,18 @@ export class AuthController {
   @Post('otp/verify')
   verifyOtp(@Body() dto: VerifyOtpDto) {
     return this.authService.verifyOtp(dto);
+  }
+
+  @Public()
+  @Post('login/staff')
+  loginStaff(@Body() dto: LoginDto) {
+    return this.authService.loginStaff(dto);
+  }
+
+  @Public()
+  @Post('login/admin')
+  loginAdmin(@Body() dto: LoginDto) {
+    return this.authService.loginAdmin(dto);
   }
 
   @Get('me')

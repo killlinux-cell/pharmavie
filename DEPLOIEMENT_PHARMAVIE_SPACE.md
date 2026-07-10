@@ -90,13 +90,13 @@ pm2 logs pharmavie-api
 
 ## Comptes test
 
-| Rôle | Téléphone | URL |
-|------|-----------|-----|
-| Admin | +2250700000099 | https://pharmavie.space/admin/login |
-| Pharmacien | +2250700000002 | https://pharmavie.space/login |
-| Client | +2250700000003 | App mobile |
+| Rôle | Connexion web | URL |
+|------|---------------|-----|
+| Admin | `admin@pharmavie.space` / `PharmaVie2026!` | https://pharmavie.space/admin/login |
+| Pharmacien | `pharmacie-plateau` / `PharmaVie2026!` | https://pharmavie.space/login |
+| Client mobile | OTP `+2250700000003` | App mobile |
 
-OTP visible dans `pm2 logs pharmavie-api` (NODE_ENV=development par défaut).
+Détails : **[COMPTES_WEB.md](./COMPTES_WEB.md)**
 
 ## Vrais numéros de téléphone (SMS OTP via Twilio)
 

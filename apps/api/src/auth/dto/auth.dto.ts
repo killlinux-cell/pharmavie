@@ -1,4 +1,4 @@
-import { IsEnum, IsOptional, IsString, Matches } from 'class-validator';
+import { IsEnum, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
 export class SendOtpDto {
@@ -30,3 +30,17 @@ export class VerifyOtpDto {
   @IsString()
   lastName?: string;
 }
+
+export class LoginDto {
+  @IsString()
+  @MinLength(3, { message: 'Identifiant requis (email ou pseudo)' })
+  login!: string;
+
+  @IsString()
+  @MinLength(6, { message: 'Mot de passe : 6 caractères minimum' })
+  password!: string;
+}
+
+export class StaffLoginDto extends LoginDto {}
+
+export class AdminLoginDto extends LoginDto {}
