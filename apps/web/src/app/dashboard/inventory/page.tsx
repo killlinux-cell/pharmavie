@@ -9,6 +9,8 @@ interface InventoryItem {
   productId: string;
   name: string;
   dci?: string;
+  barcode?: string;
+  eanCodes?: string[];
   price: number;
   quantity: number;
   isAvailable: boolean;
@@ -19,6 +21,8 @@ interface CatalogProduct {
   id: string;
   name: string;
   dci?: string;
+  barcode?: string;
+  eanCodes?: string[];
 }
 
 export default function InventoryPage() {
@@ -30,7 +34,7 @@ export default function InventoryPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [catalogQ, setCatalogQ] = useState('');
   const [catalog, setCatalog] = useState<CatalogProduct[]>([]);
-  const [newProduct, setNewProduct] = useState({ productId: '', price: 500, quantity: 10 });
+  const [newProduct, setNewProduct] = useState({ productId: '', price: 500, quantity: 10, ean: '' });
 
   async function loadInventory() {
     const pharmacyId = getPharmacyId();
@@ -96,10 +100,15 @@ export default function InventoryPage() {
     try {
       await api(`/pharmacies/${pharmacyId}/inventory`, {
         method: 'POST',
-        body: JSON.stringify(newProduct),
+        body: JSON.stringify({
+          productId: newProduct.productId,
+          price: newProduct.price,
+          quantity: newProduct.quantity,
+          ...(newProduct.ean.trim() ? { ean: newProduct.ean.replace(/\D/g, '') } : {}),
+        }),
       });
       setShowAdd(false);
-      setNewProduct({ productId: '', price: 500, quantity: 10 });
+      setNewProduct({ productId: '', price: 500, quantity: 10, ean: '' });
       await loadInventory();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erreur ajout');
@@ -131,6 +140,9 @@ export default function InventoryPage() {
       {showAdd && (
         <div className="card space-y-3">
           <h3 className="font-semibold">Ajouter au catalogue pharmacie</h3>
+          <p className="text-xs text-slate-500">
+            Scannez ou saisissez le code EAN-13 de la boîte pour activer la recherche par caméra mobile.
+          </p>
           <input
             placeholder="Rechercher dans le catalogue national..."
             value={catalogQ}
@@ -147,10 +159,19 @@ export default function InventoryPage() {
               {catalog.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name} {p.dci ? `(${p.dci})` : ''}
+                  {p.barcode ? ` · ${p.barcode}` : ''}
                 </option>
               ))}
             </select>
           )}
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="Code EAN-13 / GTIN (ex: 3400930096383)"
+            value={newProduct.ean}
+            onChange={(e) => setNewProduct({ ...newProduct, ean: e.target.value })}
+            className="w-full rounded-xl border border-surface-border px-4 py-2.5 text-sm"
+          />
           <div className="flex gap-3">
             <input
               type="number"
@@ -182,6 +203,7 @@ export default function InventoryPage() {
               <tr className="border-b border-surface-border text-slate-500">
                 <th className="pb-3 font-medium">Produit</th>
                 <th className="pb-3 font-medium">DCI</th>
+                <th className="pb-3 font-medium">Code-barres</th>
                 <th className="pb-3 font-medium">Prix</th>
                 <th className="pb-3 font-medium">Stock</th>
                 <th className="pb-3 font-medium">Disponible</th>
@@ -193,6 +215,9 @@ export default function InventoryPage() {
                 <tr key={item.id} className="border-b border-surface-border last:border-0">
                   <td className="py-3 font-medium text-slate-900">{item.name}</td>
                   <td className="py-3 text-slate-600">{item.dci ?? '—'}</td>
+                  <td className="py-3 font-mono text-xs text-slate-500">
+                    {item.eanCodes?.[0] ?? item.barcode ?? '—'}
+                  </td>
                   <td className="py-3">
                     <input
                       type="number"

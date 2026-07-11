@@ -4,13 +4,17 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { EanService } from '../products/ean.service';
 import { AuthUser } from '../common/decorators/current-user.decorator';
 import { AddInventoryDto, UpdateInventoryDto } from './dto/inventory.dto';
 import { stockUpdateData } from './stock.utils';
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eanService: EanService,
+  ) {}
 
   private assertPharmacyAccess(user: AuthUser, pharmacyId: string) {
     if (user.pharmacyId && user.pharmacyId !== pharmacyId) {
@@ -38,7 +42,7 @@ export class InventoryService {
             }
           : {}),
       },
-      include: { product: true },
+      include: { product: { include: { eanCodes: { select: { ean: true } } } } },
       orderBy: { product: { name: 'asc' } },
     });
 
@@ -51,6 +55,8 @@ export class InventoryService {
         dci: item.product.dci,
         category: item.product.category,
         requiresRx: item.product.requiresRx,
+        barcode: item.product.barcode,
+        eanCodes: item.product.eanCodes.map((e) => e.ean),
         price: item.price,
         quantity: item.quantity,
         isAvailable: item.isAvailable,
@@ -81,7 +87,7 @@ export class InventoryService {
     const updated = await this.prisma.pharmacyProduct.update({
       where: { id: inventoryId },
       data: patch,
-      include: { product: true },
+      include: { product: { include: { eanCodes: { select: { ean: true } } } } },
     });
 
     return { success: true, data: updated };
@@ -105,6 +111,10 @@ export class InventoryService {
     const product = await this.prisma.product.findUnique({ where: { id: dto.productId } });
     if (!product) throw new NotFoundException('Produit catalogue introuvable');
 
+    if (dto.ean) {
+      await this.eanService.register(dto.productId, dto.ean, 'pharmacy');
+    }
+
     const item = await this.prisma.pharmacyProduct.upsert({
       where: {
         pharmacyId_productId: { pharmacyId, productId: dto.productId },
@@ -120,7 +130,7 @@ export class InventoryService {
         quantity: dto.quantity,
         isAvailable: dto.quantity > 0 && (dto.isAvailable ?? true),
       },
-      include: { product: true },
+      include: { product: { include: { eanCodes: { select: { ean: true } } } } },
     });
 
     return { success: true, data: item };

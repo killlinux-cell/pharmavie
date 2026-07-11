@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { hashPassword } from '../src/auth/password.util';
 import { MEDICAMENTS_CI } from './data/medicaments-ci';
+import { seedProductEans } from './scripts/seed-product-eans';
 
 const prisma = new PrismaClient();
 const DEFAULT_STAFF_PASSWORD = 'PharmaVie2026!';
@@ -310,6 +311,8 @@ async function main() {
   console.log('Seed terminé :');
   console.log(`- ${pharmacies.length} pharmacies`);
   console.log(`- ${products.length} médicaments CI (AIRP/LNME)`);
+  const eanCount = await seedProductEans(prisma);
+  console.log(`- ${eanCount} codes EAN fabricant liés (scan caméra)`);
   console.log(`- Admin web: admin@pharmavie.space / mot de passe: ${DEFAULT_STAFF_PASSWORD}`);
   console.log(`- Pharmacie Plateau: pharmacie-plateau / ${DEFAULT_STAFF_PASSWORD}`);
   console.log(`- Pharmacie Cocody: pharmacie-cocody / ${DEFAULT_STAFF_PASSWORD}`);

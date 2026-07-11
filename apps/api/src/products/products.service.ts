@@ -2,7 +2,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { isInStock } from '../inventory/stock.utils';
-import { isBarcodeQuery, resolveBarcodeScan } from './barcode.utils';
+import { isBarcodeQuery } from './barcode.utils';
+import { EanService } from './ean.service';
 import { CreatePriceReportDto } from './dto/price-report.dto';
 
 interface SearchParams {
@@ -15,7 +16,10 @@ interface SearchParams {
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly eanService: EanService,
+  ) {}
 
   async search(params: SearchParams) {
     const query = params.query.trim();
@@ -23,7 +27,7 @@ export class ProductsService {
       return { success: true, data: [] };
     }
 
-    const productFilter = this.buildProductFilter(query);
+    const productFilter = await this.buildProductFilter(query);
 
     const results = await this.prisma.pharmacyProduct.findMany({
       where: {
@@ -57,7 +61,7 @@ export class ProductsService {
     } = { success: true, data: finalData };
 
     if (finalData.length === 0 && isBarcodeQuery(query)) {
-      const resolved = resolveBarcodeScan(query);
+      const resolved = await this.eanService.resolve(query);
       response.meta = {
         scannedBarcode: resolved.scanned,
         hint:
@@ -79,6 +83,8 @@ export class ProductsService {
       return { success: true, data: [] };
     }
 
+    const productFilter = await this.buildProductFilter(query);
+
     const results = await this.prisma.pharmacyProduct.findMany({
       where: {
         pharmacy: {
@@ -86,7 +92,7 @@ export class ProductsService {
           ...(params.city ? this.cityFilter(params.city) : {}),
           ...(params.district ? { district: { contains: params.district, mode: 'insensitive' } } : {}),
         },
-        product: this.buildProductFilter(query),
+        product: productFilter,
       },
       include: { product: true, pharmacy: true },
       take: 200,
@@ -179,7 +185,7 @@ export class ProductsService {
   }
 
   private async searchCatalogByBarcode(query: string, params: SearchParams) {
-    const productFilter = this.buildProductFilter(query);
+    const productFilter = await this.buildProductFilter(query);
     const products = await this.prisma.product.findMany({
       where: productFilter,
       take: 10,
@@ -255,13 +261,17 @@ export class ProductsService {
     };
   }
 
-  private buildProductFilter(query: string): Prisma.ProductWhereInput {
+  private async buildProductFilter(query: string): Promise<Prisma.ProductWhereInput> {
     if (isBarcodeQuery(query)) {
-      const resolved = resolveBarcodeScan(query);
-      const or: Prisma.ProductWhereInput[] = [
-        { barcode: { in: resolved.internalBarcodes.length ? resolved.internalBarcodes : [query] } },
-      ];
+      const resolved = await this.eanService.resolve(query);
+      const or: Prisma.ProductWhereInput[] = [];
 
+      if (resolved.productBarcodes.length) {
+        or.push({ barcode: { in: resolved.productBarcodes } });
+      }
+      if (resolved.productIds.length) {
+        or.push({ id: { in: resolved.productIds } });
+      }
       if (resolved.airpAuths.length) {
         or.push({ airpAuth: { in: resolved.airpAuths, mode: 'insensitive' } });
       }
@@ -292,10 +302,17 @@ export class ProductsService {
             ],
           }
         : undefined,
+      include: { eanCodes: { select: { ean: true } } },
       orderBy: { name: 'asc' },
       take,
     });
-    return { success: true, data: products };
+    return {
+      success: true,
+      data: products.map(({ eanCodes, ...p }) => ({
+        ...p,
+        eanCodes: eanCodes.map((e) => e.ean),
+      })),
+    };
   }
 
   private haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {

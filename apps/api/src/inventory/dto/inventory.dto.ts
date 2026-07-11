@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Matches, Min } from 'class-validator';
 
 export class UpdateInventoryDto {
   @IsOptional()
@@ -31,4 +31,10 @@ export class AddInventoryDto {
   @IsOptional()
   @IsBoolean()
   isAvailable?: boolean;
+
+  /** Code EAN-13 / GTIN scanné sur la boîte */
+  @IsOptional()
+  @IsString()
+  @Matches(/^[0-9]{8,14}$/, { message: 'EAN/GTIN : 8 à 14 chiffres' })
+  ean?: string;
 }
