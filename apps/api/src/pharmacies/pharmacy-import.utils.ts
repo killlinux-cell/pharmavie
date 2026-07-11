@@ -124,68 +124,193 @@ export function parsePhone(raw: string): string {
 }
 
 export function parseWeekRange(html: string): DutyWeek | null {
-  const text = html.replace(/<[^>]+>/g, ' ');
-  const m = text.match(/Semaine du (\d{2})\/(\d{2})\/(\d{4}) au (\d{2})\/(\d{2})\/(\d{4})/i);
-  if (!m) return null;
-  return {
-    weekStart: new Date(`${m[3]}-${m[2]}-${m[1]}T00:00:00.000Z`),
-    weekEnd: new Date(`${m[6]}-${m[5]}-${m[4]}T23:59:59.000Z`),
-  };
+  const sources = [
+    html,
+    html.replace(/<[^>]+>/g, ' '),
+  ];
+
+  const patterns: RegExp[] = [
+    /Semaine du (\d{2})\/(\d{2})\/(\d{4}) au (\d{2})\/(\d{2})\/(\d{4})/i,
+    /Semaine\s*:\s*(\d{2})\/(\d{2})\/(\d{4})\s*[→\-–]\s*(\d{2})\/(\d{2})\/(\d{4})/i,
+    /du (\d{2})\/(\d{2})\/(\d{4}) au (\d{2})\/(\d{2})\/(\d{4})/i,
+    /(\d{2})\/(\d{2})\/(\d{4})\s*[→\-–]\s*(\d{2})\/(\d{2})\/(\d{4})/,
+  ];
+
+  for (const text of sources) {
+    for (const re of patterns) {
+      const m = text.match(re);
+      if (!m) continue;
+      return {
+        weekStart: new Date(`${m[3]}-${m[2]}-${m[1]}T00:00:00.000Z`),
+        weekEnd: new Date(`${m[6]}-${m[5]}-${m[4]}T23:59:59.000Z`),
+      };
+    }
+  }
+  return null;
 }
 
-export function parseAnnuaireciDuty(html: string): { week: DutyWeek | null; pharmacies: DutyPharmacy[] } {
-  const week = parseWeekRange(html);
+function parseJsonLdDuty(html: string): { week: DutyWeek | null; pharmacies: DutyPharmacy[] } {
   const pharmacies: DutyPharmacy[] = [];
+  let week: DutyWeek | null = null;
 
-  const cardRe =
-    /class="v2-garde-card"[\s\S]*?data-name="([^"]*)"[\s\S]*?data-phone="([^"]*)"[\s\S]*?data-address="([^"]*)"[\s\S]*?data-section="([^"]*)"/g;
+  const marker = '"@type":"ItemList"';
+  const pos = html.indexOf(marker);
+  if (pos === -1) return { week, pharmacies };
 
-  let match: RegExpExecArray | null;
-  while ((match = cardRe.exec(html)) !== null) {
-    const [, rawName, rawPhone, street, section] = match;
-    const name = rawName.trim();
-    if (!name) continue;
-    const { district, city, sector } = normalizeDistrict(section.trim());
+  const scriptOpen = '<script type="application/ld+json">';
+  const start = html.lastIndexOf(scriptOpen, pos);
+  const end = html.indexOf('</script>', pos);
+  if (start === -1 || end === -1) return { week, pharmacies };
+
+  try {
+    const data = JSON.parse(html.slice(start + scriptOpen.length, end)) as {
+      '@type'?: string;
+      name?: string;
+      itemListElement?: Array<{
+        item?: {
+          '@type'?: string;
+          name?: string;
+          telephone?: string;
+          address?: { streetAddress?: string; addressLocality?: string };
+        };
+      }>;
+    };
+
+    if (data['@type'] !== 'ItemList' || !data.itemListElement?.length) {
+      return { week, pharmacies };
+    }
+
+    if (data.name) week = parseWeekRange(data.name) ?? week;
+
+    for (const entry of data.itemListElement) {
+      const item = entry.item;
+      if (!item || item['@type'] !== 'Pharmacy' || !item.name) continue;
+
+      const locality = item.address?.addressLocality?.trim() ?? 'Abidjan';
+      const { district, city, sector } = normalizeDistrict(locality);
+      pharmacies.push({
+        name: item.name.startsWith('Pharmacie') ? item.name : `Pharmacie ${item.name}`,
+        district,
+        city: city || locality,
+        sector,
+        street: item.address?.streetAddress?.trim(),
+        phone: item.telephone ? parsePhone(item.telephone.split('/')[0].trim()) : undefined,
+      });
+    }
+  } catch {
+    // JSON-LD optionnel
+  }
+
+  return { week, pharmacies };
+}
+
+function parseDutyCards(html: string): DutyPharmacy[] {
+  const pharmacies: DutyPharmacy[] = [];
+  const chunks = html.split('class="v2-garde-card"').slice(1);
+
+  for (const chunk of chunks) {
+    const rawName = chunk.match(/data-name="([^"]*)"/)?.[1]?.trim();
+    if (!rawName) continue;
+    const rawPhone = chunk.match(/data-phone="([^"]*)"/)?.[1] ?? '';
+    const street = chunk.match(/data-address="([^"]*)"/)?.[1]?.trim() ?? '';
+    const section = chunk.match(/data-section="([^"]*)"/)?.[1]?.trim() ?? '';
+    const { district, city, sector } = normalizeDistrict(section);
     pharmacies.push({
-      name: name.startsWith('Pharmacie') ? name : `Pharmacie ${name}`,
+      name: rawName.startsWith('Pharmacie') ? rawName : `Pharmacie ${rawName}`,
       district,
       city,
       sector,
-      street: street.trim(),
+      street,
       phone: parsePhone(rawPhone.split('/')[0].trim()),
     });
   }
 
-  if (pharmacies.length === 0) {
-    const sections = html.split(/###\s+/).slice(1);
-    for (const section of sections) {
-      const headerLine = section.split('\n')[0]?.trim() ?? '';
-      if (!headerLine) continue;
-      const { district, city, sector } = normalizeDistrict(headerLine.replace(/\s+\d+$/, '').trim());
-      const blocks = section.split(/####\s+/).slice(1);
-      for (const block of blocks) {
-        const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
-        const n = lines[0]?.trim();
-        if (!n) continue;
-        let street: string | undefined;
-        let phone: string | undefined;
-        for (const line of lines.slice(1)) {
-          if (/^\d{2}\s[\d\s/+\-]{6,}/.test(line)) phone = parsePhone(line.split('/')[0].trim());
-          else if (!street && line.length > 5) street = line;
-        }
-        pharmacies.push({
-          name: n.startsWith('Pharmacie') ? n : `Pharmacie ${n}`,
-          district,
-          city,
-          sector,
-          street,
-          phone: phone ?? '+2250000000000',
-        });
+  if (pharmacies.length > 0) return pharmacies;
+
+  const sections = html.split(/###\s+/).slice(1);
+  for (const section of sections) {
+    const headerLine = section.split('\n')[0]?.trim() ?? '';
+    if (!headerLine) continue;
+    const { district, city, sector } = normalizeDistrict(headerLine.replace(/\s+\d+$/, '').trim());
+    const blocks = section.split(/####\s+/).slice(1);
+    for (const block of blocks) {
+      const lines = block.split('\n').map((l) => l.trim()).filter(Boolean);
+      const n = lines[0]?.trim();
+      if (!n) continue;
+      let street: string | undefined;
+      let phone: string | undefined;
+      for (const line of lines.slice(1)) {
+        if (/^\d{2}\s[\d\s/+\-]{6,}/.test(line)) phone = parsePhone(line.split('/')[0].trim());
+        else if (!street && line.length > 5) street = line;
+      }
+      pharmacies.push({
+        name: n.startsWith('Pharmacie') ? n : `Pharmacie ${n}`,
+        district,
+        city,
+        sector,
+        street,
+        phone: phone ?? '+2250000000000',
+      });
+    }
+  }
+
+  return pharmacies;
+}
+
+export function parseAnnuaireciDuty(html: string): { week: DutyWeek | null; pharmacies: DutyPharmacy[] } {
+  const jsonLd = parseJsonLdDuty(html);
+  const week = jsonLd.week ?? parseWeekRange(html);
+  const pharmacies = jsonLd.pharmacies.length > 0 ? jsonLd.pharmacies : parseDutyCards(html);
+  return { week, pharmacies };
+}
+
+function extractSelectedScheduleId(html: string): string | null {
+  const patterns = [
+    /<option[^>]*value="(\d+)"[^>]*selected/i,
+    /<option[^>]*selected[^>]*value="(\d+)"/i,
+    /value="(\d+)"[^>]*selected='selected'/i,
+  ];
+  for (const re of patterns) {
+    const m = html.match(re);
+    if (m?.[1]) return m[1];
+  }
+  return null;
+}
+
+async function fetchAnnuaireciHtml(url: string): Promise<string> {
+  const res = await fetch(url, {
+    headers: { 'User-Agent': 'PharmaVie/1.0', Accept: 'text/html' },
+    signal: AbortSignal.timeout(45000),
+  });
+  if (!res.ok) throw new Error(`annuaireci.com: HTTP ${res.status}`);
+  return res.text();
+}
+
+export async function fetchAnnuaireciDuty(): Promise<string> {
+  const baseUrl = 'https://annuaireci.com/pharmacies-de-garde/';
+  let html = await fetchAnnuaireciHtml(baseUrl);
+  let parsed = parseAnnuaireciDuty(html);
+
+  const scheduleId = extractSelectedScheduleId(html);
+  if ((parsed.pharmacies.length === 0 || !parsed.week) && scheduleId) {
+    html = await fetchAnnuaireciHtml(`${baseUrl}?schedule=${scheduleId}`);
+    parsed = parseAnnuaireciDuty(html);
+  }
+
+  if (parsed.pharmacies.length === 0 || !parsed.week) {
+    const { readFileSync, existsSync } = await import('fs');
+    const { join } = await import('path');
+    const cachePath = join(process.cwd(), 'prisma/data/annuaireci.html');
+    if (existsSync(cachePath)) {
+      const cached = readFileSync(cachePath, 'utf-8');
+      const cachedParsed = parseAnnuaireciDuty(cached);
+      if (cachedParsed.pharmacies.length > 0 && cachedParsed.week) {
+        return cached;
       }
     }
   }
 
-  return { week, pharmacies };
+  return html;
 }
 
 export async function fetchOsmRegion(bbox: [number, number, number, number], city: string): Promise<OsmPharmacy[]> {
@@ -219,15 +344,6 @@ export async function fetchOsmRegion(bbox: [number, number, number, number], cit
   return results;
 }
 
-export async function fetchAnnuaireciDuty(): Promise<string> {
-  const res = await fetch('https://annuaireci.com/pharmacies-de-garde/', {
-    headers: { 'User-Agent': 'PharmaVie/1.0', Accept: 'text/html' },
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!res.ok) throw new Error(`annuaireci.com: HTTP ${res.status}`);
-  return res.text();
-}
-
 export interface DutyImportResult {
   weekStart: Date;
   weekEnd: Date;
@@ -249,7 +365,16 @@ export async function runDutyImport(
   uniqueSlug: (base: string) => Promise<string>,
 ): Promise<DutyImportResult> {
   const { week, pharmacies } = parseAnnuaireciDuty(html);
-  if (!week) throw new Error('Semaine de garde introuvable');
+  if (!week) {
+    throw new Error(
+      'Semaine de garde introuvable sur annuaireci.com — le format du planning a peut-être changé',
+    );
+  }
+  if (pharmacies.length === 0) {
+    throw new Error(
+      'Aucune pharmacie de garde trouvée pour cette semaine sur annuaireci.com',
+    );
+  }
 
   const dutyWeek = (await prisma.pharmacyDutyWeek.upsert({
     where: { weekStart_weekEnd: { weekStart: week.weekStart, weekEnd: week.weekEnd } },
@@ -259,24 +384,30 @@ export async function runDutyImport(
 
   await prisma.pharmacyDutyEntry.deleteMany({ where: { dutyWeekId: dutyWeek.id } });
 
+  const allPharmacies = (await prisma.pharmacy.findMany({
+    select: { id: true, name: true, phone: true, district: true, city: true },
+  } as never)) as Array<{ id: string; name: string; phone: string; district: string | null; city: string }>;
+
   let linked = 0;
   let created = 0;
   for (const d of pharmacies) {
     const norm = normalizeName(d.name);
-    const candidates = (await prisma.pharmacy.findMany({
-      where: {
-        OR: [
-          { district: { contains: d.district.split(' ')[0], mode: 'insensitive' } },
-          { city: { equals: d.city, mode: 'insensitive' } },
-        ],
-      },
-      take: 500,
-    } as never)) as Array<{ id: string; name: string; phone: string }>;
+    const districtKey = (d.district.split(' ')[0] || d.district).toLowerCase();
+    const cityKey = d.city.toLowerCase();
+
+    const candidates = allPharmacies.filter(
+      (p) =>
+        p.district?.toLowerCase().includes(districtKey) ||
+        p.city?.toLowerCase() === cityKey,
+    );
 
     let pharmacy = candidates.find((p) => normalizeName(p.name) === norm);
     if (!pharmacy && d.phone) {
       const pPhone = d.phone.replace(/\D/g, '').slice(-8);
       pharmacy = candidates.find((p) => p.phone.replace(/\D/g, '').slice(-8) === pPhone);
+    }
+    if (!pharmacy) {
+      pharmacy = allPharmacies.find((p) => normalizeName(p.name) === norm);
     }
     if (!pharmacy) {
       const coords = coordsForDistrict(d.district, d.city, d.name);
@@ -295,7 +426,8 @@ export async function runDutyImport(
           openTime: '08:00',
           closeTime: '20:00',
         },
-      } as never) as { id: string; name: string; phone: string };
+      } as never) as { id: string; name: string; phone: string; district: string | null; city: string };
+      allPharmacies.push(pharmacy);
       created += 1;
     } else {
       linked += 1;
