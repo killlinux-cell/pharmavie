@@ -41,10 +41,11 @@ class ApiClient {
       throw ApiException('Réponse serveur invalide (${res.statusCode})', res.statusCode);
     }
     if (res.statusCode >= 400) {
-      throw ApiException(
-        (body['message'] ?? body['error'] ?? 'Erreur ${res.statusCode}').toString(),
-        res.statusCode,
-      );
+      final raw = body['message'];
+      final message = raw is List
+          ? raw.join(', ')
+          : (raw ?? body['error'] ?? 'Erreur ${res.statusCode}').toString();
+      throw ApiException(message, res.statusCode);
     }
     return body;
   }

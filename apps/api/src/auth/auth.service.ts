@@ -5,29 +5,33 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
-import { UserRole } from '@prisma/client';
+import { Prisma, UserRole } from '@prisma/client';
 import Redis from 'ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { SmsService } from '../sms/sms.service';
 import { REDIS_CLIENT } from '../redis/redis.module';
 import { LoginDto, SendOtpDto, VerifyOtpDto } from './dto/auth.dto';
 import { verifyPassword } from './password.util';
+import { OtpCache } from './otp-cache';
 
 @Injectable()
 export class AuthService {
   private readonly otpTtlSeconds = 300;
+  private readonly otpCache: OtpCache;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwt: JwtService,
     private readonly sms: SmsService,
     @Inject(REDIS_CLIENT) private readonly redis: Redis,
-  ) {}
+  ) {
+    this.otpCache = new OtpCache(redis);
+  }
 
   async sendOtp(dto: SendOtpDto) {
     const phone = this.normalizePhone(dto.phone);
     const code = this.generateOtp();
-    await this.redis.setex(`otp:${phone}`, this.otpTtlSeconds, code);
+    await this.otpCache.set(phone, code, this.otpTtlSeconds);
 
     let smsSent = false;
     try {
@@ -36,37 +40,52 @@ export class AuthService {
       throw new BadRequestException('Envoi SMS impossible. Réessayez dans quelques minutes.');
     }
 
+    const exposeDevCode =
+      !smsSent &&
+      (process.env.NODE_ENV !== 'production' || !this.sms.isSmsConfigured());
+
     return {
       success: true,
       message: smsSent ? 'Code OTP envoyé par SMS' : 'Code OTP envoyé',
       data: {
         phone,
         expiresIn: this.otpTtlSeconds,
-        ...(!smsSent && process.env.NODE_ENV !== 'production' ? { devCode: code } : {}),
+        ...(exposeDevCode ? { devCode: code } : {}),
       },
     };
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
     const phone = this.normalizePhone(dto.phone);
-    const stored = await this.redis.get(`otp:${phone}`);
+    const stored = await this.otpCache.get(phone);
 
     if (!stored || stored !== dto.code) {
       throw new UnauthorizedException('Code OTP invalide ou expiré');
     }
 
-    await this.redis.del(`otp:${phone}`);
+    await this.otpCache.del(phone);
 
-    let user = await this.prisma.user.findUnique({ where: { phone } });
+    let user = await this.findUserByPhone(phone);
     if (!user) {
-      user = await this.prisma.user.create({
-        data: {
-          phone,
-          firstName: dto.firstName,
-          lastName: dto.lastName,
-          role: UserRole.CLIENT,
-        },
-      });
+      try {
+        user = await this.prisma.user.create({
+          data: {
+            phone,
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            role: UserRole.CLIENT,
+          },
+        });
+      } catch (err) {
+        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+          user = await this.findUserByPhone(phone);
+        }
+        if (!user) throw err;
+      }
+    }
+
+    if (!user.isActive) {
+      throw new UnauthorizedException('Compte désactivé. Contactez le support PharmaVie.');
     }
 
     return this.issueToken(user);
@@ -171,10 +190,54 @@ export class AuthService {
 
   normalizePhone(phone: string): string {
     const digits = phone.replace(/\D/g, '');
-    if (digits.startsWith('225')) return `+${digits}`;
-    if (digits.length === 10) return `+225${digits.slice(-10)}`;
+    if (digits.startsWith('225')) {
+      const local = digits.slice(3);
+      if (local.length === 9 && !local.startsWith('0')) return `+2250${local}`;
+      if (local.length === 10) return `+225${local}`;
+      if (local.length === 8) return `+225${local}`;
+      return `+225${local}`;
+    }
+    if (digits.length === 10) return `+225${digits}`;
+    if (digits.length === 9 && digits.startsWith('0')) return `+225${digits}`;
+    if (digits.length === 9) return `+2250${digits}`;
     if (digits.length === 8) return `+225${digits}`;
     throw new BadRequestException('Format de numéro invalide');
+  }
+
+  private phoneLookupVariants(phone: string): string[] {
+    const normalized = this.normalizePhone(phone);
+    const digits = normalized.replace(/\D/g, '');
+    const local = digits.startsWith('225') ? digits.slice(3) : digits;
+    const variants = new Set<string>([normalized, `+${digits}`, digits]);
+    if (local.length === 10) variants.add(`+225${local}`);
+    if (local.length === 9) {
+      variants.add(`+2250${local}`);
+      variants.add(`+225${local}`);
+    }
+    if (local.length === 8) variants.add(`+225${local}`);
+    return [...variants];
+  }
+
+  private async findUserByPhone(phone: string) {
+    const normalized = this.normalizePhone(phone);
+    const variants = this.phoneLookupVariants(phone);
+
+    const user = await this.prisma.user.findFirst({
+      where: { phone: { in: variants } },
+    });
+
+    if (user && user.phone !== normalized) {
+      try {
+        return await this.prisma.user.update({
+          where: { id: user.id },
+          data: { phone: normalized },
+        });
+      } catch {
+        return user;
+      }
+    }
+
+    return user;
   }
 
   private generateOtp(): string {

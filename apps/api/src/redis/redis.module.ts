@@ -11,7 +11,12 @@ export const REDIS_CLIENT = 'REDIS_CLIENT';
       provide: REDIS_CLIENT,
       inject: [ConfigService],
       useFactory: (config: ConfigService) => {
-        return new Redis(config.get<string>('REDIS_URL') ?? 'redis://localhost:6379');
+        const url = config.get<string>('REDIS_URL') ?? 'redis://localhost:6379';
+        return new Redis(url, {
+          maxRetriesPerRequest: 1,
+          connectTimeout: 5000,
+          retryStrategy: (times) => (times > 3 ? null : Math.min(times * 200, 1000)),
+        });
       },
     },
   ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pharmavie_mobile/core/api/api_client.dart';
 import 'package:pharmavie_mobile/core/theme/app_theme.dart';
+import 'package:pharmavie_mobile/core/utils/phone_utils.dart';
 import 'package:pharmavie_mobile/core/widgets/app_widgets.dart';
 
 class AuthScreen extends StatefulWidget {
@@ -34,13 +35,17 @@ class _AuthScreenState extends State<AuthScreen> {
       _error = null;
     });
     try {
-      final res = await _api.post('/auth/otp/send', {'phone': _phoneController.text}, auth: false);
+      final phone = normalizeCiPhone(_phoneController.text);
+      final res = await _api.post('/auth/otp/send', {'phone': phone}, auth: false);
       setState(() {
         _otpSent = true;
+        _phoneController.text = phone;
         _devCode = (res['data'] as Map?)?['devCode'] as String?;
       });
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      setState(() => _error = e.statusCode == 500
+          ? 'Service temporairement indisponible. Réessayez dans quelques instants.'
+          : e.message);
     } finally {
       setState(() => _loading = false);
     }
@@ -52,14 +57,17 @@ class _AuthScreenState extends State<AuthScreen> {
       _error = null;
     });
     try {
+      final phone = normalizeCiPhone(_phoneController.text);
       final res = await _api.post('/auth/otp/verify', {
-        'phone': _phoneController.text,
-        'code': _codeController.text,
+        'phone': phone,
+        'code': _codeController.text.trim(),
       }, auth: false);
       await _api.setToken((res['data'] as Map)['token'] as String);
       widget.onAuthenticated();
     } on ApiException catch (e) {
-      setState(() => _error = e.message);
+      setState(() => _error = e.statusCode == 500
+          ? 'Service temporairement indisponible. Réessayez dans quelques instants.'
+          : e.message);
     } finally {
       setState(() => _loading = false);
     }
