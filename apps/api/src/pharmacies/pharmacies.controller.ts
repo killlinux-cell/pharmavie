@@ -32,6 +32,7 @@ export class PharmaciesController {
     @Query('isOnDuty') isOnDuty?: string,
     @Query('city') city?: string,
     @Query('district') district?: string,
+    @Query('q') q?: string,
   ) {
     const r = radius ?? radiusKm;
     return this.pharmaciesService.findAll({
@@ -41,6 +42,7 @@ export class PharmaciesController {
       isOnDuty: isOnDuty === 'true',
       city,
       district,
+      q,
     });
   }
 

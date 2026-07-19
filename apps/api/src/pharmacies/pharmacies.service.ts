@@ -11,6 +11,7 @@ interface FindAllParams {
   isOnDuty?: boolean;
   city?: string;
   district?: string;
+  q?: string;
 }
 
 @Injectable()
@@ -26,9 +27,22 @@ export class PharmaciesService {
       this.dutyService.hasActiveDutyWeek(),
     ]);
 
+    const q = params.q?.trim();
+    const searchFilter = q
+      ? {
+          OR: [
+            { name: { contains: q, mode: 'insensitive' as const } },
+            { street: { contains: q, mode: 'insensitive' as const } },
+            { city: { contains: q, mode: 'insensitive' as const } },
+            { district: { contains: q, mode: 'insensitive' as const } },
+          ],
+        }
+      : {};
+
     const pharmacies = await this.prisma.pharmacy.findMany({
       where: {
         isActive: true,
+        ...searchFilter,
         ...(params.city ? this.cityWhere(params.city) : {}),
         ...(params.district
           ? { district: { contains: params.district, mode: 'insensitive' } }
@@ -55,11 +69,23 @@ export class PharmaciesService {
       filtered = filtered.filter((p) => p.isOnDuty);
     }
 
-    if (params.lat != null && params.lng != null) {
+    if (params.lat != null && params.lng != null && !q) {
       filtered = filtered.filter((p) => (p.distanceKm ?? Infinity) <= (params.radiusKm ?? 25));
     }
 
-    filtered.sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+    if (q) {
+      const lower = q.toLowerCase();
+      filtered.sort((a, b) => {
+        const aName = a.name.toLowerCase();
+        const bName = b.name.toLowerCase();
+        const aStarts = aName.startsWith(lower) ? 0 : 1;
+        const bStarts = bName.startsWith(lower) ? 0 : 1;
+        if (aStarts !== bStarts) return aStarts - bStarts;
+        return a.name.localeCompare(b.name, 'fr');
+      });
+    } else {
+      filtered.sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+    }
 
     return {
       success: true,

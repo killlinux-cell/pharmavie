@@ -4,6 +4,7 @@ import 'package:pharmavie_mobile/core/services/local_prefs_service.dart';
 import 'package:pharmavie_mobile/core/services/location_service.dart';
 import 'package:pharmavie_mobile/core/theme/app_theme.dart';
 import 'package:pharmavie_mobile/core/widgets/feature_scaffold.dart';
+import 'package:pharmavie_mobile/features/explore/presentation/screens/pharmacy_detail_screen.dart';
 
 class FavoritePharmaciesScreen extends StatefulWidget {
   const FavoritePharmaciesScreen({super.key});
@@ -68,7 +69,20 @@ class _FavoritePharmaciesScreenState extends State<FavoritePharmaciesScreen> {
                 ] else ...[
                   Text('${_favorites.length} favorite(s)', style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 12),
-                  ..._favorites.map((p) => _PharmacyTile(pharmacy: p as Map<String, dynamic>, isFavorite: true, onToggle: () => _toggle(p['id'] as String))),
+                  ..._favorites.map((p) => _PharmacyTile(
+                        pharmacy: p as Map<String, dynamic>,
+                        isFavorite: true,
+                        onToggle: () => _toggle(p['id'] as String),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => PharmacyDetailScreen(
+                              pharmacyId: p['id'] as String,
+                              initialPharmacy: p as Map<String, dynamic>,
+                            ),
+                          ),
+                        ),
+                      )),
                   const SizedBox(height: 20),
                 ],
                 const Text('Toutes les pharmacies', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
@@ -79,6 +93,15 @@ class _FavoritePharmaciesScreenState extends State<FavoritePharmaciesScreen> {
                     pharmacy: p as Map<String, dynamic>,
                     isFavorite: _favoriteIds.contains(id),
                     onToggle: () => _toggle(id),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PharmacyDetailScreen(
+                          pharmacyId: id,
+                          initialPharmacy: p as Map<String, dynamic>,
+                        ),
+                      ),
+                    ),
                   );
                 }),
               ],
@@ -88,40 +111,53 @@ class _FavoritePharmaciesScreenState extends State<FavoritePharmaciesScreen> {
 }
 
 class _PharmacyTile extends StatelessWidget {
-  const _PharmacyTile({required this.pharmacy, required this.isFavorite, required this.onToggle});
+  const _PharmacyTile({
+    required this.pharmacy,
+    required this.isFavorite,
+    required this.onToggle,
+    required this.onTap,
+  });
 
   final Map<String, dynamic> pharmacy;
   final bool isFavorite;
   final VoidCallback onToggle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: isFavorite ? AppColors.brand600.withValues(alpha: 0.3) : AppColors.border),
       ),
-      child: Row(
-        children: [
-          const Icon(Icons.local_pharmacy, color: AppColors.brand600),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(pharmacy['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w500)),
-                Text(pharmacy['street'] as String? ?? '', style: const TextStyle(fontSize: 12, color: AppColors.slate500)),
-              ],
-            ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              const Icon(Icons.local_pharmacy, color: AppColors.brand600),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(pharmacy['name'] as String? ?? '', style: const TextStyle(fontWeight: FontWeight.w500)),
+                    Text(pharmacy['street'] as String? ?? '', style: const TextStyle(fontSize: 12, color: AppColors.slate500)),
+                    const Text('Commander', style: TextStyle(fontSize: 11, color: AppColors.brand700, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: onToggle,
+                icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border, color: isFavorite ? AppColors.red600 : AppColors.slate400),
+              ),
+            ],
           ),
-          IconButton(
-            onPressed: onToggle,
-            icon: Icon(isFavorite ? Icons.favorite : Icons.favorite_border, color: isFavorite ? AppColors.red600 : AppColors.slate400),
-          ),
-        ],
+        ),
       ),
     );
   }

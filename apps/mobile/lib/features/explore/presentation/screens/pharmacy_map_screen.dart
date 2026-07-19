@@ -7,6 +7,7 @@ import 'package:pharmavie_mobile/core/services/location_service.dart';
 import 'package:pharmavie_mobile/core/utils/navigation_helper.dart';
 import 'package:pharmavie_mobile/core/theme/app_theme.dart';
 import 'package:pharmavie_mobile/core/widgets/feature_scaffold.dart';
+import 'package:pharmavie_mobile/features/explore/presentation/screens/pharmacy_detail_screen.dart';
 import 'package:pharmavie_mobile/features/explore/presentation/widgets/pharmacy_city_filters.dart';
 
 class PharmacyMapScreen extends StatefulWidget {
@@ -204,13 +205,37 @@ class _PharmacyMapScreenState extends State<PharmacyMapScreen> {
               child: ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pop(ctx);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PharmacyDetailScreen(
+                        pharmacyId: id,
+                        initialPharmacy: pharmacy,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.shopping_bag_outlined),
+                label: const Text('Commander dans cette pharmacie'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.brand600,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.pop(ctx);
                   _openDirections(pharmacy);
                 },
                 icon: const Icon(Icons.directions),
                 label: const Text('Itinéraire vers la pharmacie'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.brand600,
-                  foregroundColor: Colors.white,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.brand700,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
               ),
