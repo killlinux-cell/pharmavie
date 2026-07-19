@@ -327,7 +327,7 @@ export class OrdersService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [todayOrders, allProducts, lowStock, orders] = await Promise.all([
+    const [todayOrders, allProducts, lowStock, orders, newOrders, pendingOrders] = await Promise.all([
       this.prisma.order.count({
         where: { pharmacyId, createdAt: { gte: today } },
       }),
@@ -338,6 +338,13 @@ export class OrdersService {
       this.prisma.order.findMany({
         where: { pharmacyId, createdAt: { gte: today }, status: { not: 'CANCELLED' } },
         select: { total: true },
+      }),
+      this.prisma.order.count({ where: { pharmacyId, status: OrderStatus.NEW } }),
+      this.prisma.order.count({
+        where: {
+          pharmacyId,
+          status: { in: [OrderStatus.NEW, OrderStatus.CONFIRMED, OrderStatus.PREPARING] },
+        },
       }),
     ]);
 
@@ -351,6 +358,45 @@ export class OrdersService {
         lowStock,
         todayRevenue: revenue,
         alerts: lowStock,
+        newOrders,
+        pendingOrders,
+      },
+    };
+  }
+
+  async getAlerts(pharmacyId: string) {
+    const [newCount, pendingCount, newOrders] = await Promise.all([
+      this.prisma.order.count({ where: { pharmacyId, status: OrderStatus.NEW } }),
+      this.prisma.order.count({
+        where: {
+          pharmacyId,
+          status: { in: [OrderStatus.NEW, OrderStatus.CONFIRMED, OrderStatus.PREPARING] },
+        },
+      }),
+      this.prisma.order.findMany({
+        where: { pharmacyId, status: OrderStatus.NEW },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        include: {
+          user: { select: { firstName: true, lastName: true, phone: true } },
+        },
+      }),
+    ]);
+
+    return {
+      success: true,
+      data: {
+        newCount,
+        pendingCount,
+        newOrders: newOrders.map((o) => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          total: o.total,
+          type: o.type,
+          createdAt: o.createdAt,
+          clientName:
+            [o.user.firstName, o.user.lastName].filter(Boolean).join(' ') || o.user.phone,
+        })),
       },
     };
   }

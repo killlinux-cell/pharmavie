@@ -15,6 +15,8 @@ import {
 import { useEffect, useState } from 'react';
 import { api, clearToken } from '@/lib/api';
 import { useAuth, PHARMACY_ROLES } from '@/lib/auth';
+import { useOrderAlerts } from '@/lib/use-order-alerts';
+import { OrderAlertsBanner } from '@/components/dashboard/OrderAlertsBanner';
 
 const navItems = [
   { href: '/dashboard', label: 'Vue d\'ensemble', icon: LayoutDashboard },
@@ -30,6 +32,20 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth(PHARMACY_ROLES);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pharmacyName, setPharmacyName] = useState('Ma pharmacie');
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const {
+    alerts,
+    latestOrder,
+    flash,
+    dismissLatest,
+    requestNotificationPermission,
+  } = useOrderAlerts(!loading && !!user?.id);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotificationsEnabled(Notification.permission === 'granted');
+    }
+  }, []);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -103,7 +119,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   key={item.href}
                   href={item.href}
                   onClick={() => setSidebarOpen(false)}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                  className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                     active
                       ? 'bg-brand-50 text-brand-700'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
@@ -111,6 +127,11 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                 >
                   <item.icon className="h-5 w-5" />
                   {item.label}
+                  {item.href === '/dashboard/orders' && (alerts?.newCount ?? 0) > 0 && (
+                    <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1.5 text-[10px] font-bold text-white animate-pulse">
+                      {alerts!.newCount > 9 ? '9+' : alerts!.newCount}
+                    </span>
+                  )}
                 </Link>
               );
             })}
@@ -138,10 +159,31 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             <p className="text-sm text-slate-500">{pharmacyName}</p>
             <h1 className="text-lg font-semibold text-slate-900">Tableau de bord</h1>
           </div>
+          {(alerts?.newCount ?? 0) > 0 && (
+            <Link
+              href="/dashboard/orders"
+              className="mr-3 hidden items-center gap-2 rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 ring-1 ring-red-200 sm:flex"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              {alerts!.newCount} nouvelle{alerts!.newCount > 1 ? 's' : ''}
+            </Link>
+          )}
           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">
             {initials}
           </div>
         </header>
+
+        <OrderAlertsBanner
+          alerts={alerts}
+          latestOrder={latestOrder}
+          flash={flash}
+          onDismissLatest={dismissLatest}
+          notificationsEnabled={notificationsEnabled}
+          onEnableNotifications={async () => {
+            const ok = await requestNotificationPermission();
+            setNotificationsEnabled(ok);
+          }}
+        />
 
         <main className="p-6">{children}</main>
       </div>

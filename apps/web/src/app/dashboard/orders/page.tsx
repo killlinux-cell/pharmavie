@@ -14,6 +14,8 @@ interface Order {
   createdAt: string;
 }
 
+const POLL_MS = 15_000;
+
 const NEXT_STATUS: Record<string, { status: string; label: string }[]> = {
   NEW: [{ status: 'CONFIRMED', label: 'Confirmer' }],
   CONFIRMED: [{ status: 'PREPARING', label: 'Préparer' }],
@@ -48,6 +50,12 @@ export default function OrdersPage() {
     loadOrders()
       .catch((e) => setError(e instanceof Error ? e.message : 'Erreur'))
       .finally(() => setLoading(false));
+
+    const timer = window.setInterval(() => {
+      loadOrders().catch(() => undefined);
+    }, POLL_MS);
+
+    return () => window.clearInterval(timer);
   }, []);
 
   async function updateStatus(id: string, status: string, reason?: string) {
@@ -93,14 +101,29 @@ export default function OrdersPage() {
       )}
 
       <div className="card">
-        <h2 className="text-lg font-semibold text-slate-900">Gestion des commandes</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Nouvelle → confirmée → préparation → prête → livraison → livrée
-        </p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-900">Gestion des commandes</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Nouvelle → confirmée → préparation → prête → livraison → livrée
+            </p>
+          </div>
+          {orders.some((o) => o.status === 'NEW') && (
+            <span className="rounded-full bg-red-100 px-3 py-1 text-xs font-semibold text-red-700 animate-pulse">
+              {orders.filter((o) => o.status === 'NEW').length} nouvelle
+              {orders.filter((o) => o.status === 'NEW').length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
       </div>
 
       {orders.map((order) => (
-        <div key={order.id} className="card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          key={order.id}
+          className={`card flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between ${
+            order.status === 'NEW' ? 'ring-2 ring-amber-300 bg-amber-50/40' : ''
+          }`}
+        >
           <div>
             <p className="font-semibold text-slate-900">{order.orderNumber}</p>
             <p className="text-sm text-slate-600">

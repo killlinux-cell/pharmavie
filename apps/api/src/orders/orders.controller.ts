@@ -29,6 +29,14 @@ export class OrdersController {
     return this.ordersService.getStats(id);
   }
 
+  @Get('alerts')
+  @Roles(UserRole.PHARMACIST, UserRole.PHARMACY_STAFF, UserRole.ADMIN)
+  async alerts(@CurrentUser() user: AuthUser, @Query('pharmacyId') pharmacyId?: string) {
+    const id = pharmacyId ?? user.pharmacyId ?? (await this.ordersService.resolvePharmacyId(user));
+    if (!id) throw new BadRequestException('pharmacyId requis');
+    return this.ordersService.getAlerts(id);
+  }
+
   @Get(':id')
   findOne(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.ordersService.findOne(user, id);

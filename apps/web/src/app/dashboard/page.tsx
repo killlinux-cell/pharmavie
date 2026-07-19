@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Package, ShoppingCart, TrendingUp } from 'lucide-react';
+import { AlertTriangle, Bell, Package, ShoppingCart, TrendingUp } from 'lucide-react';
 import { api, formatFcfa, getPharmacyId } from '@/lib/api';
 
 interface Stats {
@@ -11,6 +11,8 @@ interface Stats {
   lowStock: number;
   todayRevenue: number;
   alerts: number;
+  newOrders?: number;
+  pendingOrders?: number;
 }
 
 interface Order {
@@ -18,33 +20,49 @@ interface Order {
   clientName: string;
   total: number;
   statusLabel: string;
+  status?: string;
 }
+
+const POLL_MS = 30_000;
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
   const [error, setError] = useState('');
 
-  useEffect(() => {
+  const loadData = useCallback(async () => {
     const pharmacyId = getPharmacyId();
-
-    Promise.all([
+    const [statsRes, ordersRes] = await Promise.all([
       api<{ data: Stats }>(`/orders/stats${pharmacyId ? `?pharmacyId=${pharmacyId}` : ''}`),
       api<{ data: Order[] }>('/orders'),
-    ])
-      .then(([statsRes, ordersRes]) => {
-        setStats(statsRes.data);
-        setOrders(ordersRes.data.slice(0, 5));
-      })
-      .catch((err) => setError(err.message));
+    ]);
+    setStats(statsRes.data);
+    setOrders(ordersRes.data.slice(0, 5));
+    setError('');
   }, []);
+
+  useEffect(() => {
+    loadData().catch((err) => setError(err.message));
+    const timer = window.setInterval(() => {
+      loadData().catch(() => undefined);
+    }, POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadData]);
+
+  const newCount = stats?.newOrders ?? 0;
 
   const statCards = stats
     ? [
-        { label: 'Commandes du jour', value: String(stats.todayOrders), icon: ShoppingCart, trend: 'Temps réel' },
-        { label: 'Produits en stock', value: String(stats.totalProducts), icon: Package, trend: `${stats.lowStock} alertes` },
-        { label: 'Chiffre du jour', value: formatFcfa(stats.todayRevenue), icon: TrendingUp, trend: 'API live' },
-        { label: 'Alertes stock', value: String(stats.alerts), icon: AlertTriangle, trend: 'Stock bas' },
+        {
+          label: 'Commandes du jour',
+          value: String(stats.todayOrders),
+          icon: ShoppingCart,
+          trend: newCount > 0 ? `${newCount} nouvelle${newCount > 1 ? 's' : ''} à traiter` : 'Temps réel',
+          highlight: newCount > 0,
+        },
+        { label: 'Produits en stock', value: String(stats.totalProducts), icon: Package, trend: `${stats.lowStock} alertes`, highlight: false },
+        { label: 'Chiffre du jour', value: formatFcfa(stats.todayRevenue), icon: TrendingUp, trend: 'API live', highlight: false },
+        { label: 'Alertes stock', value: String(stats.alerts), icon: AlertTriangle, trend: 'Stock bas', highlight: false },
       ]
     : [];
 
@@ -54,17 +72,39 @@ export default function DashboardPage() {
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>
       )}
 
+      {newCount > 0 && (
+        <Link
+          href="/dashboard/orders"
+          className="flex items-center gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 transition hover:bg-amber-100"
+        >
+          <div className="rounded-full bg-amber-500 p-2 text-white">
+            <Bell className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="font-semibold text-amber-900">
+              {newCount} commande{newCount > 1 ? 's' : ''} en attente de traitement
+            </p>
+            <p className="text-sm text-amber-700">Cliquez pour voir et confirmer les commandes</p>
+          </div>
+        </Link>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {(stats ? statCards : Array(4).fill(null)).map((stat, i) => (
-          <div key={i} className="card">
+          <div
+            key={i}
+            className={`card ${stat?.highlight ? 'ring-2 ring-amber-300 bg-amber-50/50' : ''}`}
+          >
             {stat ? (
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm text-slate-500">{stat.label}</p>
                   <p className="mt-1 text-2xl font-bold text-slate-900">{stat.value}</p>
-                  <p className="mt-1 text-xs text-brand-600">{stat.trend}</p>
+                  <p className={`mt-1 text-xs ${stat.highlight ? 'font-semibold text-amber-700' : 'text-brand-600'}`}>
+                    {stat.trend}
+                  </p>
                 </div>
-                <div className="rounded-xl bg-brand-50 p-2.5 text-brand-700">
+                <div className={`rounded-xl p-2.5 ${stat.highlight ? 'bg-amber-100 text-amber-700' : 'bg-brand-50 text-brand-700'}`}>
                   <stat.icon className="h-5 w-5" />
                 </div>
               </div>
@@ -101,8 +141,20 @@ export default function DashboardPage() {
                 </tr>
               ) : (
                 orders.map((order) => (
-                  <tr key={order.orderNumber} className="border-b border-surface-border last:border-0">
-                    <td className="py-3 font-medium text-slate-900">{order.orderNumber}</td>
+                  <tr
+                    key={order.orderNumber}
+                    className={`border-b border-surface-border last:border-0 ${
+                      order.status === 'NEW' ? 'bg-amber-50/60' : ''
+                    }`}
+                  >
+                    <td className="py-3 font-medium text-slate-900">
+                      {order.orderNumber}
+                      {order.status === 'NEW' && (
+                        <span className="ml-2 rounded-full bg-red-500 px-2 py-0.5 text-[10px] font-bold text-white">
+                          NOUVEAU
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 text-slate-600">{order.clientName}</td>
                     <td className="py-3 text-slate-600">{formatFcfa(order.total)}</td>
                     <td className="py-3">

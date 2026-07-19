@@ -1,4 +1,4 @@
-import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsNumber, IsOptional, IsString, MinLength, ValidateIf } from 'class-validator';
 import { UserRole } from '@prisma/client';
 
 export class CreatePharmacyDto {
@@ -44,6 +44,32 @@ export class CreatePharmacyDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @MinLength(3)
+  staffUsername?: string;
+
+  @ValidateIf((o: CreatePharmacyDto) => Boolean(o.staffUsername))
+  @IsString()
+  @MinLength(6, { message: 'Mot de passe pharmacien : 6 caractères minimum' })
+  staffPassword?: string;
+
+  @IsOptional()
+  @IsString()
+  staffEmail?: string;
+
+  @IsOptional()
+  @IsString()
+  staffPhone?: string;
+
+  @IsOptional()
+  @IsString()
+  staffFirstName?: string;
+
+  @IsOptional()
+  @IsString()
+  staffLastName?: string;
 }
 
 export class AdminUpdatePharmacyDto {

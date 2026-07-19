@@ -1,454 +1,640 @@
-# Cahier des charges — PharmaVie
-## Plateforme de santé & pharmacie pour la Côte d'Ivoire
+# PharmaVie — Cahier des charges
 
-**Version :** 1.0  
-**Date :** 2 juillet 2026  
-**Statut :** Document de référence pour la conception et le développement
+**Plateforme de santé & pharmacie pour la Côte d'Ivoire**
 
----
-
-## 1. Contexte et vision
-
-### 1.1 Problématique
-En Côte d'Ivoire, les patients peinent souvent à :
-- localiser un médicament disponible rapidement ;
-- comparer les prix entre pharmacies ;
-- commander et se faire livrer sans se déplacer ;
-- obtenir une orientation fiable avant de consulter un professionnel de santé.
-
-Les pharmacies, de leur côté, manquent d'outils numériques pour gérer leurs stocks en temps réel, recevoir des commandes et fidéliser leur clientèle.
-
-### 1.2 Vision
-**PharmaVie** est la plateforme de référence qui connecte les citoyens ivoiriens aux pharmacies de proximité, avec une expérience fluide, moderne et utile au quotidien.
-
-### 1.3 Objectifs mesurables (12 mois)
-| Objectif | Cible |
-|----------|-------|
-| Pharmacies partenaires actives | 200+ |
-| Utilisateurs inscrits | 50 000+ |
-| Commandes traitées / mois | 10 000+ |
-| Taux de disponibilité affiché correct | > 90 % |
-| Délai moyen de livraison (Abidjan) | < 2 h |
-| Note moyenne app stores | ≥ 4,5 / 5 |
-
-### 1.4 Périmètre géographique
-- **Phase 1 :** Grand Abidjan (Cocody, Plateau, Yopougon, Marcory, Treichville, etc.)
-- **Phase 2 :** Bouaké, Yamoussoukro, San-Pédro
-- **Phase 3 :** Couverture nationale
+| | |
+|---|---|
+| **Version** | 2.0 |
+| **Date** | 14 juillet 2026 |
+| **Statut** | Document de référence — équipe projet |
+| **Production** | https://pharmavie.space |
+| **API** | https://api.pharmavie.space/api/v1 |
+| **Dépôt** | Monorepo `pharmavie` (API + Web + Mobile) |
 
 ---
 
-## 2. Acteurs et personas
+## Table des matières
 
-### 2.1 Acteurs du système
-| Acteur | Rôle |
-|--------|------|
-| **Client / Patient** | Recherche, commande, suit livraison, utilise l'assistant IA |
-| **Pharmacien / Gérant** | Gère stock, commandes, prix, livraisons via dashboard web |
-| **Personnel pharmacie** | Prépare commandes, met à jour disponibilités |
-| **Livreur** | Récupère et livre les commandes (interne ou partenaire) |
-| **Médecin / Spécialiste** | Référencé pour orientation (pas de consultation in-app en V1) |
-| **Administrateur PharmaVie** | Modération, analytics, support, onboarding pharmacies |
-| **Régulateur / Conformité** | ANSM locale, ordre des pharmaciens (consultation externe) |
+1. [Résumé exécutif](#1-résumé-exécutif)
+2. [Contexte et vision](#2-contexte-et-vision)
+3. [Acteurs et rôles](#3-acteurs-et-rôles)
+4. [Architecture technique](#4-architecture-technique)
+5. [Applications et modules](#5-applications-et-modules)
+6. [État d'avancement par fonctionnalité](#6-état-davancement-par-fonctionnalité)
+7. [Données et intégrations](#7-données-et-intégrations)
+8. [Sécurité et conformité](#8-sécurité-et-conformité)
+9. [Déploiement et exploitation](#9-déploiement-et-exploitation)
+10. [Modèle économique](#10-modèle-économique)
+11. [Roadmap](#11-roadmap)
+12. [Risques et mitigations](#12-risques-et-mitigations)
+13. [Organisation projet](#13-organisation-projet)
+14. [Critères d'acceptation](#14-critères-dacceptation)
+15. [Annexes](#15-annexes)
 
-### 2.2 Personas clés
+**Légende des statuts**
+
+| Symbole | Signification |
+|---------|---------------|
+| ✅ | Implémenté et déployé (ou fonctionnel en dev) |
+| 🟡 | Partiellement implémenté — à compléter |
+| ⬜ | Non démarré ou Phase 2+ |
+
+---
+
+## 1. Résumé exécutif
+
+**PharmaVie** connecte les citoyens ivoiriens aux pharmacies de proximité : recherche de médicaments, comparaison de prix, commande, orientation santé via assistant IA, et gestion digitale pour les officines.
+
+### Ce qui existe aujourd'hui
+
+Le produit est **opérationnel en production** sur `pharmavie.space` avec :
+
+- **Application mobile Flutter** (clients) — OTP SMS, recherche, carte, commandes, scan code-barres, assistant IA
+- **Dashboard web pharmacie** (Next.js) — inventaire, commandes, ordonnances, paramètres
+- **Portail admin national** — 756+ pharmacies, sync gardes UNPPCI, gestion utilisateurs
+- **API NestJS** — authentification, catalogue, commandes, paiements, prescriptions
+- **Base PostgreSQL + PostGIS**, Redis (OTP), déploiement VPS (PM2 + Docker DB)
+
+### Priorités immédiates équipe
+
+1. Import catalogue médicaments complet (AIRP / MEDPRYM)
+2. Enrichissement codes EAN pour le scan caméra
+3. Finalisation paiement Mobile Money (CinetPay) en production
+4. Notifications push mobile
+5. Publication stores (Google Play / App Store)
+
+---
+
+## 2. Contexte et vision
+
+### 2.1 Problématique
+
+En Côte d'Ivoire, patients et pharmacies font face à :
+
+- Difficulté à trouver un médicament disponible rapidement, surtout la nuit (pharmacies de garde)
+- Absence de transparence sur les prix entre officines
+- Peu d'outils numériques pour les pharmacies (stock, commandes en ligne)
+- Orientation santé difficile avant consultation médicale
+
+### 2.2 Vision
+
+Devenir **la plateforme de référence** reliant citoyens et pharmacies en Côte d'Ivoire, avec une expérience mobile-first, locale (FCFA, +225, Mobile Money) et conforme aux règles pharmaceutiques.
+
+### 2.3 Objectifs mesurables (12 mois)
+
+| Indicateur | Cible |
+|------------|-------|
+| Pharmacies référencées | 500+ actives |
+| Utilisateurs mobile inscrits | 50 000+ |
+| Commandes / mois | 10 000+ |
+| Exactitude disponibilité affichée | > 90 % |
+| Délai livraison Abidjan | < 2 h |
+| Note app stores | ≥ 4,5 / 5 |
+
+### 2.4 Périmètre géographique
+
+| Phase | Zone |
+|-------|------|
+| **Phase 1 (actuelle)** | Grand Abidjan + annuaire national pharmacies |
+| **Phase 2** | Bouaké, Yamoussoukro, San-Pédro |
+| **Phase 3** | Couverture nationale complète |
+
+---
+
+## 3. Acteurs et rôles
+
+### 3.1 Matrice des acteurs
+
+| Acteur | Application | Authentification | Rôle principal |
+|--------|-------------|------------------|----------------|
+| **Client / Patient** | App mobile | OTP SMS (+225) | Recherche, commande, IA, ordonnances |
+| **Pharmacien** | Dashboard web | Email ou pseudo + mot de passe | Stock, commandes, validation ordonnances |
+| **Personnel pharmacie** | Dashboard web | Email ou pseudo + mot de passe | Préparation commandes, inventaire |
+| **Administrateur PharmaVie** | Portail admin | Email ou pseudo + mot de passe | Gestion plateforme, pharmacies, sync gardes |
+| **Livreur** | — (Phase 2) | — | Livraison commandes |
+| **Spécialiste santé** | Annuaire (lecture) | — | Référencé pour orientation IA |
+
+### 3.2 Personas
 
 **Awa, 32 ans — mère de famille (Abidjan)**  
-Cherche des médicaments pour son enfant à 21 h, veut savoir quelle pharmacie de garde a le produit et à quel prix.
+Cherche un médicament pour son enfant le soir, consulte les pharmacies de garde et compare les prix.
 
-**Kouamé, 45 ans — pharmacien propriétaire**  
-Gère 3 employés, veut digitaliser les commandes et réduire les ruptures de stock grâce à un inventaire clair.
+**Kouamé, 45 ans — pharmacien**  
+Veut recevoir des commandes en ligne et mettre à jour son stock sans double saisie.
 
-**Jean, 28 ans — étudiant**  
-Utilise l'assistant IA pour comprendre des symptômes légers avant de décider s'il consulte.
+**Admin PharmaVie**  
+Onboard les pharmacies, synchronise les gardes UNPPCI, supervise l'activité nationale.
 
 ---
 
-## 3. Architecture produit (écosystème)
+## 4. Architecture technique
+
+### 4.1 Schéma d'ensemble
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                        PHARMAVIE                                 │
-├──────────────┬────────────────────┬─────────────────────────────┤
-│  App Mobile  │  Dashboard Web     │  Portail Admin              │
-│  (Clients)   │  (Pharmacies)      │  (Équipe PharmaVie)         │
-│  iOS/Android │  Responsive PWA    │  Back-office                │
-└──────┬───────┴─────────┬──────────┴──────────────┬──────────────┘
-       │                 │                         │
-       └─────────────────┼─────────────────────────┘
-                         │
-              ┌──────────▼──────────┐
-              │   API Backend       │
-              │   (REST + WebSocket)│
-              └──────────┬──────────┘
-                         │
-       ┌─────────────────┼─────────────────┐
-       │                 │                 │
-┌──────▼──────┐  ┌───────▼───────┐  ┌──────▼──────┐
-│ PostgreSQL  │  │ Redis / Cache │  │ IA / LLM    │
-│ + PostGIS   │  │ Notifications │  │ Symptômes   │
-└─────────────┘  └───────────────┘  └─────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│                         PHARMAVIE                                    │
+├──────────────────┬─────────────────────┬────────────────────────────┤
+│  App Mobile      │  Dashboard Web      │  Portail Admin             │
+│  Flutter         │  Next.js 15         │  Next.js 15                │
+│  iOS / Android   │  /login             │  /admin/login              │
+└────────┬─────────┴──────────┬──────────┴─────────────┬──────────────┘
+         │                    │                        │
+         └────────────────────┼────────────────────────┘
+                              │
+                   ┌──────────▼──────────┐
+                   │   API REST NestJS   │
+                   │   /api/v1           │
+                   └──────────┬──────────┘
+                              │
+         ┌────────────────────┼────────────────────┐
+         │                    │                    │
+  ┌──────▼──────┐    ┌────────▼────────┐   ┌──────▼──────┐
+  │ PostgreSQL  │    │ Redis           │   │ OpenAI      │
+  │ + PostGIS   │    │ (OTP, cache)    │   │ (IA, opt.)  │
+  └─────────────┘    └─────────────────┘   └─────────────┘
 ```
 
-### 3.1 Applications à développer
-1. **Application mobile client** (Flutter ou React Native — cross-platform)
-2. **Dashboard web pharmacie** (React / Next.js — responsive, utilisable sur tablette en officine)
-3. **Application livreur** (module léger ou app dédiée — Phase 2)
-4. **Portail administrateur** (gestion plateforme)
-5. **API centrale** + services (auth, commandes, stock, géolocalisation, IA)
+### 4.2 Stack retenue (implémentée)
+
+| Couche | Technologie | Dossier |
+|--------|-------------|---------|
+| Mobile client | Flutter 3.x / Dart | `apps/mobile` |
+| Web pharmacie + admin | Next.js 15, TypeScript, Tailwind | `apps/web` |
+| API | NestJS, Prisma ORM | `apps/api` |
+| Base de données | PostgreSQL 16 + PostGIS | Docker |
+| Cache / OTP | Redis 7 | Docker |
+| SMS OTP | Twilio (prod) / mode dev | `apps/api/src/sms` |
+| Paiement | CinetPay (intégration) | `apps/api/src/payments` |
+| Cartes | flutter_map + OpenStreetMap | Mobile |
+| Hébergement | VPS — pharmavie.space | `deploy/simple/` |
+| Process manager | PM2 | API + Web |
+| Reverse proxy | Nginx + Certbot (HTTPS) | |
+
+### 4.3 Structure du monorepo
+
+```
+pharmavie/
+├── apps/
+│   ├── api/          Backend NestJS + Prisma
+│   ├── web/          Dashboard pharmacie + Admin
+│   └── mobile/       Application client Flutter
+├── deploy/simple/    Scripts déploiement VPS
+├── COMPTES_WEB.md    Comptes et accès web
+├── CONFIGURATION_TWILIO.md
+└── CAHIER_DES_CHARGES.md   (ce document)
+```
 
 ---
 
-## 4. Exigences fonctionnelles
+## 5. Applications et modules
 
-### 4.1 Module Client (Application mobile)
+### 5.1 Application mobile client (Flutter)
 
-#### 4.1.1 Authentification & profil
-- [ ] Inscription par numéro de téléphone (+225) avec OTP SMS
-- [ ] Connexion biométrique (empreinte / Face ID)
-- [ ] Profil : nom, adresses enregistrées, historique commandes
-- [ ] Mode invité limité (recherche sans commande)
+**Public cible :** patients, grand public  
+**Connexion :** numéro +225 + code OTP SMS (pas de mot de passe)
 
-#### 4.1.2 Recherche de médicaments
-- [ ] Recherche par nom commercial, DCI (dénomination commune), code-barres (scan)
-- [ ] Filtres : distance, prix, disponibilité, pharmacie de garde
-- [ ] Carte interactive des pharmacies avec pins colorés (disponible / rupture / garde)
-- [ ] Affichage : prix TTC, stock estimé, distance, horaires, note utilisateurs
-- [ ] Comparaison côte à côte (jusqu'à 5 pharmacies)
+| Module | Description |
+|--------|-------------|
+| Accueil | Recherche rapide, raccourcis (carte, scan, comparateur, IA) |
+| Explorer | Carte pharmacies, filtres ville/commune/garde, scan code-barres |
+| Panier | Multi-produits, une pharmacie, persistance locale |
+| Commande | Retrait ou livraison, ordonnance si Rx, paiement |
+| Ordonnances | Envoi photo ordonnance, suivi validation |
+| Commandes | Historique et statuts |
+| Profil | Favoris, adresses, paramètres |
+| Assistant IA | Chat orientation santé (garde-fous médicaux) |
+| Comparateur prix | Comparaison offres entre pharmacies |
+| Signalement prix | Signaler un prix incorrect |
 
-#### 4.1.3 Commande & livraison
-- [ ] Panier multi-produits, multi-pharmacies (si autorisé)
-- [ ] Choix : retrait en pharmacie ou livraison à domicile
-- [ ] Paiement : Mobile Money (Orange Money, MTN MoMo, Wave), espèces à la livraison
-- [ ] Suivi commande en temps réel (statuts + carte livreur en Phase 2)
-- [ ] Notifications push à chaque changement de statut
-- [ ] Historique et factures PDF
+### 5.2 Dashboard web pharmacie
 
-#### 4.1.4 Assistant IA santé (orientation — pas diagnostic)
-- [ ] Chat conversationnel en français (et nouchi optionnel Phase 2)
-- [ ] Collecte structurée : symptômes, durée, antécédents, âge
-- [ ] Réponses pédagogiques avec **avertissement médical obligatoire**
-- [ ] Recommandation de type de professionnel ( généraliste, pédiatre, gynécologue, etc.)
-- [ ] Carte des spécialistes / centres de santé à proximité (annuaire partenaire)
-- [ ] Escalade vers pharmacie de garde ou urgences si signes graves détectés
-- [ ] **Interdiction explicite** : prescription, diagnostic définitif, substitution médicamenteuse
+**URL :** https://pharmavie.space/login  
+**Connexion :** email **ou** pseudo + mot de passe
 
-#### 4.1.5 Fonctionnalités sociales & confiance
-- [ ] Avis et notes sur pharmacies (modérés)
-- [ ] Signalement produit indisponible / prix incorrect
-- [ ] Pharmacies favorites
-- [ ] Rappels de prise médicamenteuse (Phase 2)
+| Module | Description |
+|--------|-------------|
+| Vue d'ensemble | KPIs jour : commandes, stock, CA, alertes |
+| Commandes | Workflow complet + refus, annulation, suppression |
+| Inventaire | Stock, prix, ajout catalogue national, **code EAN** |
+| Ordonnances | Validation / refus avec aperçu image |
+| Paramètres | Horaires, garde, adresse, GPS |
 
----
+### 5.3 Portail administrateur
 
-### 4.2 Module Pharmacie (Dashboard web)
+**URL :** https://pharmavie.space/admin/login  
+**Connexion :** email **ou** pseudo + mot de passe admin
 
-#### 4.2.1 Onboarding pharmacie
-- [ ] Inscription avec vérification licence / autorisation d'exercice
-- [ ] Fiche pharmacie : nom, adresse GPS, téléphone, horaires, photo, services (garde, livraison)
-- [ ] Configuration équipe : rôles (admin, préparateur, caissier)
-
-#### 4.2.2 Gestion des produits & inventaire
-- [ ] Catalogue produits (base nationale + ajout manuel)
-- [ ] Entrées / sorties de stock (réception, vente, casse, péremption)
-- [ ] Alertes : stock bas, péremption proche (< 30 jours)
-- [ ] Import CSV / sync ERP pharmacie (Phase 2)
-- [ ] Mise à jour prix en masse ou unitaire
-- [ ] Statut disponibilité publié automatiquement sur l'app client
-
-#### 4.2.3 Gestion des commandes
-- [ ] File d'attente commandes (nouvelle → confirmée → préparée → livrée)
-- [ ] Acceptation / refus avec motif (rupture, ordonnance manquante)
-- [ ] Impression bon de préparation
-- [ ] Attribution livreur interne ou PharmaVie Delivery
-- [ ] Statistiques : CA journalier, produits les plus demandés
-
-#### 4.2.4 Communication client
-- [ ] Chat intégré avec client (question sur substitut, disponibilité)
-- [ ] Réponses rapides prédéfinies
-- [ ] Notifications commandes entrantes (son + push web)
-
-#### 4.2.5 Tableau de bord & analytics
-- [ ] KPIs : ventes, commandes en cours, taux de rupture, panier moyen
-- [ ] Graphiques : évolution hebdomadaire / mensuelle
-- [ ] Export comptable (CSV, PDF)
+| Module | Description |
+|--------|-------------|
+| Vue nationale | KPIs, heatmap activité, commandes récentes |
+| Pharmacies | CRUD, recherche, GPS, actif/garde, **création compte pharmacien** |
+| Sync gardes UNPPCI | Import planning depuis annuaireci.com |
+| Commandes | Supervision nationale |
+| Ordonnances | Supervision et filtres |
+| Utilisateurs | Liste, filtres par rôle, activation/suspension |
+| Spécialistes | Annuaire médecins (CRUD) |
 
 ---
 
-### 4.3 Module Administration (Portail PharmaVie)
+## 6. État d'avancement par fonctionnalité
 
-- [ ] Validation et suspension comptes pharmacies
-- [ ] Modération avis et signalements
-- [ ] Gestion catalogue national médicaments
-- [ ] Configuration tarifs commission / abonnement
-- [ ] Tableau de bord national (heatmap demandes, zones sous-desservies)
-- [ ] Support tickets clients et pharmacies
-- [ ] Logs audit et conformité
+### 6.1 Module Client (Mobile)
 
----
+| Fonctionnalité | Statut | Détail |
+|----------------|--------|--------|
+| Inscription / connexion OTP SMS | ✅ | Twilio en production |
+| Recherche médicament (nom, DCI) | ✅ | API live + debounce |
+| Scan code-barres (EAN-13) | 🟡 | Fonctionnel ; base EAN à enrichir |
+| Carte pharmacies + GPS | ✅ | flutter_map, tri distance |
+| Filtres ville / commune / garde | ✅ | |
+| Comparateur de prix | ✅ | |
+| Panier multi-produits | ✅ | 1 pharmacie |
+| Commande retrait / livraison | ✅ | |
+| Ordonnance photo (médicaments Rx) | ✅ | |
+| Paiement Mobile Money | 🟡 | Intégration CinetPay — config prod |
+| Suivi commandes | ✅ | |
+| Assistant IA | ✅ | OpenAI optionnel |
+| Annuaire spécialistes | ✅ | |
+| Pharmacies favorites | ✅ | |
+| Signalement prix | ✅ | |
+| Notifications push | ⬜ | Préférences en base, pas FCM |
+| Connexion biométrique | ⬜ | Phase 2 |
+| Mode invité | ⬜ | Phase 2 |
+| Rappels médicaments | ⬜ | Phase 2 |
+| Avis pharmacies | 🟡 | Modèle en base, UI partielle |
 
-### 4.4 Module Livraison (Phase 2)
+### 6.2 Module Pharmacie (Dashboard Web)
 
-- [ ] App livreur : courses disponibles, navigation, preuve livraison (photo + signature)
-- [ ] Calcul frais livraison dynamique (distance, trafic Abidjan)
-- [ ] Paiement livreur et reversement pharmacie
+| Fonctionnalité | Statut | Détail |
+|----------------|--------|--------|
+| Connexion email/pseudo + mot de passe | ✅ | |
+| Vue d'ensemble KPIs | ✅ | |
+| Gestion commandes (workflow) | ✅ | Confirmer → préparer → prête → livrée |
+| Refus / annulation / suppression commande | ✅ | |
+| Inventaire CRUD | ✅ | Prix, stock, disponibilité |
+| Ajout produit catalogue national | ✅ | |
+| Saisie code EAN à l'ajout | ✅ | Pour scan caméra mobile |
+| Validation ordonnances | ✅ | |
+| Paramètres pharmacie (GPS, horaires) | ✅ | |
+| Alertes stock bas | 🟡 | Compteur alertes, pas notification push |
+| Import CSV / sync ERP | ⬜ | Phase 2 |
+| Chat client intégré | ⬜ | Phase 2 |
+| Export comptable PDF | ⬜ | Phase 2 |
 
----
+### 6.3 Module Administration
 
-## 5. Exigences IA — Assistant santé
+| Fonctionnalité | Statut | Détail |
+|----------------|--------|--------|
+| Vue nationale + heatmap | ✅ | |
+| Liste / recherche pharmacies | ✅ | 756+ en base |
+| Création pharmacie + compte pharmacien | ✅ | Pseudo + mot de passe à la création |
+| Sync gardes UNPPCI | ✅ | annuaireci.com |
+| Import pharmacies OSM | ✅ | Script `import:pharmacies` |
+| Supervision commandes / utilisateurs | ✅ | |
+| Gestion spécialistes | ✅ | |
+| Modération avis | ⬜ | Phase 2 |
+| Réinitialisation mot de passe | ⬜ | À développer |
+| Gestion abonnements / commissions | ⬜ | Phase 2 |
 
-### 5.1 Principes non négociables
-1. **L'IA informe, elle ne soigne pas** — disclaimers visibles à chaque session
-2. **Pas de prescription** — redirection vers professionnel habilité
-3. **Détection d'urgence** — mots-clés et règles pour orienter vers SAMU / urgences
-4. **Traçabilité** — journalisation des échanges (anonymisée) pour amélioration et audit
-5. **Validation humaine** — contenu médical validé par comité consultatif (pharmacien + médecin)
+### 6.4 Module Livraison
 
-### 5.2 Fonctionnalités IA
-| Fonction | Description | Priorité |
-|----------|-------------|----------|
-| Tri symptômes | Questions adaptatives (arbre décisionnel + LLM) | MVP |
-| Orientation spécialiste | Suggestion type de praticien + carte | MVP |
-| FAQ médicaments | Interactions, posologie générale (sources officielles) | Phase 2 |
-| Recherche vocale | Dictée en français local | Phase 2 |
-| Résumé pour pharmacien | Contexte commande (avec consentement patient) | Phase 2 |
+| Fonctionnalité | Statut |
+|----------------|--------|
+| App livreur | ⬜ Phase 2 |
+| Suivi livreur temps réel | ⬜ Phase 2 |
+| Frais livraison dynamiques | 🟡 Fixe 1 500 FCFA |
 
-### 5.3 Garde-fous techniques
-- Prompt system strict avec refus de diagnostic
-- Liste noire médicaments sur ordonnance → redirection pharmacie
-- Rate limiting et modération contenu
-- Conformité RGPD / loi ivoirienne sur les données personnelles
+### 6.5 Catalogue médicaments
 
----
-
-## 6. Exigences UX / UI — Design system cohérent
-
-### 6.1 Principes de design
-- **Clarté avant tout** : typographie lisible, contrastes WCAG AA
-- **Confiance** : palette médicale moderne (verts apaisants, blancs, accents chaleureux)
-- **Rapidité perçue** : skeleton loaders, transitions < 300 ms
-- **Cohérence** : même design system sur mobile, web pharmacie et admin
-- **Contexte local** : icônes Mobile Money, formats +225, franc CFA (FCFA)
-
-### 6.2 Design system PharmaVie (à produire en amont)
-- [ ] Tokens : couleurs, espacements, rayons, ombres
-- [ ] Typographie : Inter ou Plus Jakarta Sans + fallback système
-- [ ] Composants : boutons, cartes pharmacie, badges stock, modales, toasts
-- [ ] Iconographie : Lucide ou Phosphor (style uniforme)
-- [ ] Mode sombre (Phase 2)
-
-### 6.3 Parcours critiques à prototyper (Figma)
-1. Recherche médicament → résultats carte → commande
-2. Réception commande côté pharmacie → préparation → clôture
-3. Conversation assistant IA → orientation spécialiste
-4. Onboarding pharmacie complet
-
-### 6.4 Performance UX
-- First Contentful Paint < 1,5 s (4G)
-- Recherche médicament : résultats < 500 ms
-- Offline partiel : historique commandes + favoris en cache
-
----
-
-## 7. Exigences techniques
-
-### 7.1 Stack recommandée
-| Couche | Technologie suggérée |
-|--------|---------------------|
-| Mobile | Flutter (performance + un seul codebase) |
-| Web pharmacie / admin | Next.js 15 + TypeScript |
-| Backend | Node.js (NestJS) ou Python (FastAPI) |
-| Base de données | PostgreSQL + PostGIS (géolocalisation) |
-| Cache / temps réel | Redis + WebSocket (Socket.io) |
-| Recherche | Meilisearch ou Elasticsearch |
-| IA | OpenAI API / Claude API + couche règles métier |
-| Hébergement | AWS af-south-1 (Le Cap) ou GCP — latence CI |
-| CDN | Cloudflare |
-| Auth | JWT + refresh tokens, OTP via Africa's Talking ou Twilio |
-| Paiement | Agrégateur CinetPay / PayDunya (Mobile Money CI) |
-| Maps | Google Maps ou Mapbox |
-| Notifications | Firebase Cloud Messaging |
-| Stockage fichiers | S3-compatible |
-
-### 7.2 Sécurité
-- HTTPS partout, certificats TLS 1.3
-- Chiffrement données sensibles au repos (AES-256)
-- RBAC strict (client, pharmacien, admin, livreur)
-- Audit log des actions sensibles
-- Pentest avant lancement public
-- Sauvegardes quotidiennes, RPO < 1 h, RTO < 4 h
-
-### 7.3 Scalabilité
-- Architecture modulaire (microservices progressifs)
-- API stateless, horizontal scaling
-- Objectif : 10 000 requêtes/min en pic
+| Élément | Statut | Détail |
+|---------|--------|--------|
+| Seed 120 médicaments (LNME/AIRP) | ✅ | Démo / base |
+| Import MEDPRYM (milliers) | 🟡 | Script prêt, à lancer sur VPS |
+| Codes internes 619… | ✅ | Par produit |
+| Codes EAN fabricant (scan boîte) | 🟡 | ~5 produits + saisie pharmacie |
+| Prix par pharmacie | ✅ | `pharmacy_products` |
 
 ---
 
-## 8. Modèle économique
+## 7. Données et intégrations
 
-### 8.1 Sources de revenus
+### 7.1 Sources de données
+
+| Source | Usage | Statut |
+|--------|-------|--------|
+| **AIRP / MEDPRYM** | Catalogue national médicaments | 🟡 Import script |
+| **OpenStreetMap** | Pharmacies géolocalisées | ✅ |
+| **UNPPCI / annuaireci.com** | Planning pharmacies de garde | ✅ Sync hebdo |
+| **ean-aliases.ts** | Correspondance EAN → produit | 🟡 Enrichissement manuel |
+| **Saisie pharmacie** | EAN à l'ajout inventaire | ✅ |
+
+### 7.2 Intégrations tierces
+
+| Service | Usage | Statut |
+|---------|-------|--------|
+| **Twilio** | SMS OTP clients | ✅ Prod |
+| **CinetPay** | Orange Money, MTN, Wave | 🟡 Config |
+| **OpenAI** | Assistant IA | 🟡 Clé API optionnelle |
+| **Google Maps** | Itinéraire (lien externe mobile) | ✅ |
+| **Firebase FCM** | Push notifications | ⬜ |
+| **Nginx + Certbot** | HTTPS | ✅ |
+
+### 7.3 Workflow commande (implémenté)
+
+```
+NEW ──→ CONFIRMED ──→ PREPARING ──→ READY ──→ DELIVERING ──→ DELIVERED
+ │           │              │           │
+ └──→ REJECTED      CANCELLED ←────────┘
+```
+
+| Statut API | Libellé FR |
+|------------|------------|
+| NEW | Nouvelle |
+| CONFIRMED | Confirmée |
+| PREPARING | En préparation |
+| READY | Prête |
+| DELIVERING | En livraison |
+| DELIVERED | Livrée |
+| CANCELLED | Annulée |
+| REJECTED | Refusée |
+
+---
+
+## 8. Sécurité et conformité
+
+### 8.1 Authentification
+
+| Canal | Méthode |
+|-------|---------|
+| App mobile (CLIENT) | OTP SMS — pas de mot de passe |
+| Dashboard pharmacie | Email ou pseudo + mot de passe (bcrypt) |
+| Portail admin | Email ou pseudo + mot de passe |
+| API | JWT Bearer, rôles RBAC |
+
+### 8.2 Rôles (RBAC)
+
+`CLIENT` · `PHARMACIST` · `PHARMACY_STAFF` · `ADMIN` · `DELIVERY` (réservé)
+
+### 8.3 Assistant IA — garde-fous
+
+1. **L'IA informe, elle ne soigne pas** — disclaimer à chaque session
+2. **Pas de prescription** — redirection vers professionnel
+3. **Détection urgence** — orientation SAMU / urgences
+4. **Médicaments sur ordonnance** — workflow validation pharmacien obligatoire
+
+### 8.4 Conformité Côte d'Ivoire (à finaliser)
+
+| Exigence | Statut |
+|----------|--------|
+| Consultation Ordre des Pharmaciens CI | ⬜ |
+| Workflow ordonnance photo | ✅ |
+| CGU + politique confidentialité | ⬜ |
+| Déclaration protection données (ARTCI) | ⬜ |
+| Mentions légales IA | 🟡 |
+
+### 8.5 Sécurité technique
+
+- HTTPS TLS (Let's Encrypt) ✅
+- JWT + expiration tokens ✅
+- Mots de passe hashés (bcrypt) ✅
+- CORS configuré ✅
+- Sauvegardes PostgreSQL — à automatiser 🟡
+
+---
+
+## 9. Déploiement et exploitation
+
+### 9.1 Environnements
+
+| Environnement | URL | Usage |
+|---------------|-----|-------|
+| **Production** | https://pharmavie.space | Public |
+| **API prod** | https://api.pharmavie.space/api/v1 | Mobile + Web |
+| **Local dev** | localhost:3000 / 3001 | Développement |
+
+### 9.2 Déploiement VPS (méthode recommandée)
+
+```bash
+cd /opt/pharmavie
+git pull
+bash deploy/simple/deploy.sh          # Déploiement standard
+bash deploy/simple/deploy.sh --full-data   # + import pharmacies + MEDPRYM
+```
+
+**Composants :** PM2 (API + Web), Docker (PostgreSQL + Redis), Nginx, Certbot
+
+### 9.3 Commandes données importantes
+
+```bash
+npm run db:push -w @pharmavie/api          # Schéma BDD
+npm run db:seed -w @pharmavie/api          # Données de base
+npm run import:pharmacies -w @pharmavie/api   # Pharmacies OSM + gardes
+npm run import:medprym -w @pharmavie/api      # Catalogue AIRP
+npm run inventory:seed -w @pharmavie/api      # Stock pharmacies
+npm run ean:seed -w @pharmavie/api            # Codes EAN connus
+```
+
+### 9.4 Comptes de test (après seed)
+
+Voir fichier **`COMPTES_WEB.md`** — mot de passe initial : `PharmaVie2026!`
+
+| Rôle | Accès |
+|------|-------|
+| Admin | https://pharmavie.space/admin/login |
+| Pharmacie | https://pharmavie.space/login |
+| Client mobile | OTP sur +2250700000003 (dev) |
+
+---
+
+## 10. Modèle économique
+
+### 10.1 Sources de revenus envisagées
+
 1. **Commission** sur commandes livrées (8–12 %)
-2. **Abonnement pharmacie** : tier Gratuit (limité) / Pro / Premium
-3. **Mise en avant** : pharmacies sponsorisées dans résultats recherche
-4. **Livraison** : marge sur frais livraison
-5. **Partenariats** : laboratoires, mutuelles (Phase 3)
+2. **Abonnement pharmacie** (Starter / Pro / Premium)
+3. **Mise en avant** dans les résultats de recherche
+4. **Marge livraison**
+5. **Partenariats** laboratoires / mutuelles (Phase 3)
 
-### 8.2 Grille abonnement pharmacie (indicatif)
+### 10.2 Grille abonnement pharmacie (indicatif)
+
 | Plan | Prix/mois | Inclus |
 |------|-----------|--------|
 | Starter | 0 FCFA | 50 produits, 20 commandes/mois |
-| Pro | 25 000 FCFA | Illimité stock, analytics, chat |
-| Premium | 75 000 FCFA | + visibilité, support prioritaire, API sync |
+| Pro | 25 000 FCFA | Stock illimité, analytics |
+| Premium | 75 000 FCFA | Visibilité, support, API |
+
+> Facturation abonnements : **Phase 2** — non implémentée.
 
 ---
 
-## 9. Conformité & réglementaire (Côte d'Ivoire)
+## 11. Roadmap
 
-- [ ] Consultation Ordre des Pharmaciens de Côte d'Ivoire
-- [ ] Respect vente médicaments sur ordonnance (workflow validation ordonnance photo)
-- [ ] Déclaration CNIL équivalente : ARTCI / protection données personnelles
-- [ ] Conditions générales d'utilisation + politique confidentialité
-- [ ] Mentions légales assistant IA (disclaimer médical)
-- [ ] Facturation conforme (TVA, reçus)
+### Phase 0 — Fondations ✅ (terminée)
 
----
+- Architecture monorepo, API, BDD, auth
+- Design system web (Tailwind, vert PharmaVie)
+- Déploiement production pharmavie.space
 
-## 10. Intégrations tierces
+### Phase 1 — MVP 🟡 (en cours)
 
-| Service | Usage |
-|---------|-------|
-| Orange Money / MTN MoMo / Wave | Paiements |
-| Africa's Talking | SMS OTP |
-| Google Maps / Mapbox | Géolocalisation |
-| Firebase | Push notifications |
-| OpenAI / Anthropic | Assistant IA |
-| CinetPay / PayDunya | Agrégation paiement |
+| Livrable | Statut |
+|----------|--------|
+| App mobile recherche + commande | ✅ |
+| Dashboard pharmacie complet | ✅ |
+| Portail admin + 756 pharmacies | ✅ |
+| Catalogue MEDPRYM complet | 🟡 |
+| Paiement Mobile Money prod | 🟡 |
+| Scan EAN opérationnel | 🟡 |
+| Publication stores | ⬜ |
 
----
+### Phase 2 — Croissance (Q4 2026 – Q1 2027)
 
-## 11. Plan de déploiement par phases
-
-### Phase 0 — Fondations (6–8 semaines)
-- Design system Figma complet
-- Architecture technique + CI/CD
-- API auth, profils, catalogue médicaments pilote (500 références)
-- Landing page + pré-inscription pharmacies
-
-### Phase 1 — MVP (10–12 semaines)
-- App client : recherche, carte, commande retrait pharmacie
-- Dashboard pharmacie : stock, commandes, prix
-- Paiement Mobile Money
-- Assistant IA basique (orientation symptômes légers)
-- Lancement pilote : 20 pharmacies Abidjan
-
-### Phase 2 — Croissance (8–10 semaines)
-- Livraison à domicile + app livreur
+- App livreur + suivi temps réel
+- Notifications push (FCM)
 - Chat client-pharmacie
 - Analytics avancés pharmacie
 - Extension Bouaké / Yamoussoukro
-- Ordonnance photo + validation
+- Abonnements et facturation pharmacies
 
-### Phase 3 — Scale (continu)
+### Phase 3 — Scale (2027+)
+
 - Sync ERP pharmacies
-- Partenariats mutuelles / assurances
+- Partenariats mutuelles
 - Programme fidélité
 - API ouverte B2B
 
 ---
 
-## 12. Critères d'acceptation globaux
+## 12. Risques et mitigations
+
+| Risque | Impact | Probabilité | Mitigation |
+|--------|--------|-------------|------------|
+| Stock pharmacies incorrect | Élevé | Moyenne | Confirmation à la commande, signalement client |
+| Responsabilité médicale IA | Critique | Faible | Disclaimers, pas de diagnostic, comité médical |
+| Faible adoption pharmacies | Élevé | Moyenne | Onboarding gratuit, formation, support |
+| Catalogue incomplet | Élevé | Actuelle | Import MEDPRYM + saisie EAN pharmacies |
+| Pannes Mobile Money | Moyen | Moyenne | Multi-opérateurs + espèces |
+| Réseau 3G/4G lent | Moyen | Élevée | App légère, cache, messages clairs |
+
+---
+
+## 13. Organisation projet
+
+### 13.1 Équipe recommandée
+
+| Rôle | Responsabilités |
+|------|-----------------|
+| **Product Owner / Chef de projet** | Priorisation, roadmap, stakeholders |
+| **Dev mobile (Flutter)** | App client, stores |
+| **Dev fullstack (Next.js + NestJS)** | Web, API, BDD |
+| **DevOps** | VPS, CI/CD, monitoring |
+| **Designer UX/UI** | Maquettes, design system |
+| **QA** | Tests manuels et automatisés |
+| **Conseiller pharmacien** | Conformité, workflow ordonnances |
+| **Commercial pharmacies** | Onboarding officines CI |
+
+### 13.2 Documentation projet
+
+| Document | Contenu |
+|----------|---------|
+| `CAHIER_DES_CHARGES.md` | Ce document |
+| `COMPTES_WEB.md` | Accès admin et pharmacies |
+| `CONFIGURATION_TWILIO.md` | SMS OTP |
+| `DEPLOIEMENT_PHARMAVIE_SPACE.md` | Guide déploiement VPS |
+| `README.md` | Démarrage développeur |
+
+### 13.3 Export PDF pour l'équipe
+
+1. Ouvrir ce fichier dans **VS Code**, **Typora** ou **GitHub**
+2. Exporter en PDF :
+   - **VS Code** : extension « Markdown PDF » → clic droit → Export PDF
+   - **Typora** : Fichier → Exporter → PDF
+   - **Navigateur** : coller le HTML rendu → Imprimer → Enregistrer en PDF
+   - **Pandoc** : `pandoc CAHIER_DES_CHARGES.md -o PharmaVie_CDC.pdf --pdf-engine=xelatex -V geometry:margin=2.5cm`
+
+---
+
+## 14. Critères d'acceptation
 
 Une fonctionnalité est **validée** si :
-1. Elle respecte le design system PharmaVie
-2. Elle fonctionne sur Android 10+ et iOS 15+ (client) / Chrome, Safari, Edge dernières versions (web)
-3. Les tests unitaires couvrent ≥ 70 % du code métier critique
-4. Les tests E2E passent sur les 3 parcours critiques
-5. Accessibilité : navigation clavier web, labels ARIA, tailles touch ≥ 44 px mobile
-6. Documentation API à jour (OpenAPI / Swagger)
-7. Revue sécurité et conformité médicale approuvée
+
+1. Elle fonctionne sur **Android 10+** et **iOS 15+** (mobile)
+2. Elle fonctionne sur **Chrome, Safari, Edge** dernières versions (web)
+3. Les parcours critiques sont testés manuellement (recherche → commande → préparation)
+4. L'API retourne des erreurs explicites (pas de 500 silencieux)
+5. Les données sensibles ne sont pas exposées (auth, RBAC)
+6. Documentation à jour dans le dépôt
+
+**Parcours critiques à tester avant chaque release :**
+
+1. Client : OTP → recherche → panier → commande
+2. Pharmacie : login → commande NEW → confirmée → prête
+3. Admin : création pharmacie + compte → sync gardes
+4. Scan code-barres → résultat ou message explicite
 
 ---
 
-## 13. Risques et mitigations
+## 15. Annexes
 
-| Risque | Impact | Mitigation |
-|--------|--------|------------|
-| Données stock pharmacies incorrectes | Élevé | Sync obligatoire à la confirmation commande, pénalités réputation |
-| Responsabilité médicale IA | Critique | Disclaimers, pas de diagnostic, comité médical, assurance RC Pro |
-| Faible adoption pharmacies | Élevé | Onboarding gratuit, formation sur site, support dédié |
-| Pannes Mobile Money | Moyen | Multi-opérateurs + paiement espèces |
-| Concurrence (Jumia Health, etc.) | Moyen | Différenciation locale, IA, relation pharmacien |
-| Lenteur réseau 3G/4G | Moyen | App légère, cache agressif, mode dégradé |
-
----
-
-## 14. Équipe projet recommandée
-
-| Rôle | Effectif |
-|------|----------|
-| Product Owner / Chef de projet | 1 |
-| Designer UX/UI | 1 |
-| Dev mobile (Flutter) | 1–2 |
-| Dev fullstack (Next.js + API) | 2 |
-| DevOps / Infra | 1 |
-| QA | 1 |
-| Conseiller médical / pharmacien | 1 (consultant) |
-| Commercial pharmacies (CI) | 1–2 |
-
----
-
-## 15. Budget indicatif (MVP — 6 mois)
-
-| Poste | Estimation |
-|-------|------------|
-| Développement (équipe) | 45–70 M FCFA |
-| Design & branding | 5–8 M FCFA |
-| Infrastructure cloud (6 mois) | 3–5 M FCFA |
-| APIs tierces (maps, SMS, IA, paiement) | 2–4 M FCFA |
-| Marketing lancement pilote | 5–10 M FCFA |
-| Juridique & conformité | 2–3 M FCFA |
-| **Total MVP** | **~62–100 M FCFA** |
-
-*Budget à affiner selon choix stack et recrutement local vs remote.*
-
----
-
-## 16. Prochaines étapes immédiates
-
-1. **Valider** ce cahier des charges avec un pharmacien et un médecin ivoiriens
-2. **Nommer** le produit définitif (PharmaVie ?) et réserver domaines + réseaux sociaux
-3. **Produire** maquettes Figma des 4 parcours critiques
-4. **Constituer** la base médicaments pilote (partenariat grossiste ou open data)
-5. **Recruter** 5 pharmacies pilotes à Abidjan pour co-construction
-6. **Choisir** stack technique et initialiser le dépôt Git
-7. **Consultation juridique** : ordre des pharmaciens + ARTCI
-
----
-
-## Annexe A — Glossaire
+### Annexe A — Glossaire
 
 | Terme | Définition |
 |-------|------------|
-| DCI | Dénomination Commune Internationale (nom générique du médicament) |
-| Pharmacie de garde | Pharmacie ouverte en dehors des horaires habituels (rotation locale) |
-| Mobile Money | Paiement via téléphone (Orange Money, MTN MoMo, Wave) |
-| MVP | Minimum Viable Product — première version utilisable |
-| PostGIS | Extension PostgreSQL pour données géographiques |
+| **DCI** | Dénomination Commune Internationale (nom générique) |
+| **EAN-13 / GTIN** | Code-barres sur la boîte du médicament |
+| **AIRP** | Autorité Ivoirienne de Régulation Pharmaceutique |
+| **UNPPCI** | Union Nationale des Pharmaciens Privés de CI |
+| **Pharmacie de garde** | Permanence 24h/24 (planning hebdomadaire) |
+| **Mobile Money** | Orange Money, MTN MoMo, Wave |
+| **Rx** | Médicament nécessitant une ordonnance |
+| **FCFA** | Franc CFA — devise |
+| **OTP** | One-Time Password — code SMS à usage unique |
+
+### Annexe B — Endpoints API principaux
+
+```
+POST   /auth/otp/send              OTP mobile
+POST   /auth/otp/verify            Connexion client
+POST   /auth/login/staff           Connexion pharmacie
+POST   /auth/login/admin           Connexion admin
+GET    /products/search?q=         Recherche + scan
+GET    /products/compare?q=        Comparateur prix
+POST   /orders                     Créer commande
+PATCH  /orders/:id/status          Workflow pharmacie
+DELETE /orders/:id                 Supprimer commande
+GET    /pharmacies?lat=&lng=       Pharmacies proches
+POST   /pharmacies/:id/inventory   Ajouter stock (+ EAN)
+GET    /admin/pharmacies           Liste admin
+POST   /admin/pharmacies           Créer pharmacie + compte
+POST   /admin/pharmacies/sync-duty Sync gardes UNPPCI
+POST   /ai/chat                    Assistant IA
+POST   /payments/initiate          Paiement Mobile Money
+```
+
+### Annexe C — Identité visuelle
+
+| Élément | Valeur |
+|---------|--------|
+| Couleur principale | Vert émeraude `#059669` |
+| Couleur secondaire | Menthe clair `#ECFDF5` |
+| Logo | Icône « P » + croix médicale (app mobile) |
+| Typographie web | System UI / Tailwind defaults |
+
+### Annexe D — Budget indicatif MVP restant
+
+| Poste | Estimation |
+|-------|------------|
+| Finalisation MVP (catalogue, EAN, paiement, stores) | 15–25 M FCFA |
+| Infrastructure VPS (12 mois) | 2–4 M FCFA |
+| APIs (SMS, IA, paiement) | 2–4 M FCFA |
+| Marketing lancement | 5–10 M FCFA |
+| Juridique & conformité | 2–3 M FCFA |
 
 ---
 
-## Annexe B — Statuts commande (workflow)
+**PharmaVie** — Plateforme santé & pharmacie, Côte d'Ivoire  
+*Document v2.0 — 14 juillet 2026 — À partager avec l'équipe projet.*
 
-```
-NOUVELLE → CONFIRMÉE_PHARMACIE → EN_PRÉPARATION → PRÊTE
-    ↓                                      ↓
- REFUSÉE                              EN_LIVRAISON → LIVRÉE
-                                              ↓
-                                         ANNULÉE
-```
-
----
-
-*Document rédigé pour le projet PharmaVie — Plateforme santé Côte d'Ivoire.*  
-*À réviser après validation stakeholders et retours pilote.*
+*Contact technique : voir dépôt Git et documentation `deploy/simple/`.*

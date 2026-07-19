@@ -45,6 +45,12 @@ const EMPTY_FORM = {
   longitude: '-4.02',
   openTime: '08:00',
   closeTime: '20:00',
+  staffUsername: '',
+  staffPassword: '',
+  staffEmail: '',
+  staffPhone: '',
+  staffFirstName: '',
+  staffLastName: '',
 };
 
 export default function AdminPharmaciesPage() {
@@ -60,6 +66,7 @@ export default function AdminPharmaciesPage() {
   const [dutyStatus, setDutyStatus] = useState<DutyStatus | null>(null);
   const [syncMsg, setSyncMsg] = useState('');
   const [search, setSearch] = useState('');
+  const [createSuccess, setCreateSuccess] = useState('');
 
   const filteredList = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -112,6 +119,7 @@ export default function AdminPharmaciesPage() {
 
   function openEdit(p: Pharmacy) {
     setEditId(p.id);
+    setCreateSuccess('');
     setForm({
       name: p.name,
       phone: p.phone,
@@ -123,6 +131,12 @@ export default function AdminPharmaciesPage() {
       longitude: String(p.longitude),
       openTime: p.openTime ?? '08:00',
       closeTime: p.closeTime ?? '20:00',
+      staffUsername: '',
+      staffPassword: '',
+      staffEmail: p.email ?? '',
+      staffPhone: p.phone,
+      staffFirstName: '',
+      staffLastName: '',
     });
   }
 
@@ -144,6 +158,7 @@ export default function AdminPharmaciesPage() {
   async function submitForm(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    setCreateSuccess('');
     setLoading(editId ?? 'create');
     const payload = {
       name: form.name.trim(),
@@ -156,14 +171,33 @@ export default function AdminPharmaciesPage() {
       longitude: parseFloat(form.longitude),
       openTime: form.openTime,
       closeTime: form.closeTime,
+      ...(!editId && form.staffUsername.trim()
+        ? {
+            staffUsername: form.staffUsername.trim(),
+            staffPassword: form.staffPassword,
+            staffEmail: form.staffEmail.trim() || undefined,
+            staffPhone: form.staffPhone.trim() || undefined,
+            staffFirstName: form.staffFirstName.trim() || undefined,
+            staffLastName: form.staffLastName.trim() || undefined,
+          }
+        : {}),
     };
     try {
       if (editId) {
         await api(`/admin/pharmacies/${editId}`, { method: 'PATCH', body: JSON.stringify(payload) });
         setEditId(null);
       } else {
-        await api('/admin/pharmacies', { method: 'POST', body: JSON.stringify(payload) });
+        const res = await api<{
+          data: {
+            staffAccount?: { username: string; email: string; loginUrl: string } | null;
+          };
+        }>('/admin/pharmacies', { method: 'POST', body: JSON.stringify(payload) });
         setShowCreate(false);
+        if (res.data.staffAccount) {
+          setCreateSuccess(
+            `Pharmacie créée. Connexion dashboard : ${res.data.staffAccount.username} ou ${res.data.staffAccount.email} → ${res.data.staffAccount.loginUrl}`,
+          );
+        }
       }
       setForm(EMPTY_FORM);
       load();
@@ -256,6 +290,7 @@ export default function AdminPharmaciesPage() {
       )}
 
       {syncMsg && <p className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-400">{syncMsg}</p>}
+      {createSuccess && <p className="rounded-lg bg-emerald-500/10 p-3 text-sm text-emerald-400">{createSuccess}</p>}
 
       {error && <p className="rounded-lg bg-red-500/10 p-3 text-sm text-red-400">{error}</p>}
 
@@ -345,6 +380,64 @@ export default function AdminPharmaciesPage() {
               <input value={form.closeTime} onChange={(e) => setForm({ ...form, closeTime: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white" />
             </label>
           </div>
+
+          {!editId && (
+            <div className="space-y-3 rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+              <p className="text-sm font-medium text-white">Compte dashboard pharmacie</p>
+              <p className="text-xs text-slate-400">
+                Pseudo + mot de passe pour que la pharmacie se connecte sur pharmavie.space/login
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="block">
+                  <span className="text-xs text-slate-400">Pseudo connexion *</span>
+                  <input
+                    value={form.staffUsername}
+                    onChange={(e) => setForm({ ...form, staffUsername: e.target.value })}
+                    placeholder="pharmacie-nom-quartier"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-slate-400">Mot de passe *</span>
+                  <input
+                    type="password"
+                    value={form.staffPassword}
+                    onChange={(e) => setForm({ ...form, staffPassword: e.target.value })}
+                    placeholder="6 caractères minimum"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-slate-400">Email connexion</span>
+                  <input
+                    type="email"
+                    value={form.staffEmail}
+                    onChange={(e) => setForm({ ...form, staffEmail: e.target.value })}
+                    placeholder="Sinon email pharmacie"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-slate-400">Téléphone compte</span>
+                  <input
+                    value={form.staffPhone}
+                    onChange={(e) => setForm({ ...form, staffPhone: e.target.value })}
+                    placeholder="Sinon téléphone pharmacie"
+                    className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-slate-400">Prénom responsable</span>
+                  <input value={form.staffFirstName} onChange={(e) => setForm({ ...form, staffFirstName: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white" />
+                </label>
+                <label className="block">
+                  <span className="text-xs text-slate-400">Nom responsable</span>
+                  <input value={form.staffLastName} onChange={(e) => setForm({ ...form, staffLastName: e.target.value })} className="mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white" />
+                </label>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2">
             <button type="submit" disabled={loading != null} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-semibold text-slate-900 disabled:opacity-50">
               {loading ? 'Enregistrement…' : editId ? 'Mettre à jour' : 'Créer la pharmacie'}

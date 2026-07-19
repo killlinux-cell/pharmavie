@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrderStatus, PrescriptionStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { hashPassword } from '../auth/password.util';
 import {
   AdminAssignStaffDto,
   AdminUpdatePharmacyDto,
@@ -169,25 +170,104 @@ export class AdminService {
       slug = `${baseSlug}-${attempt}`;
     }
 
-    const pharmacy = await this.prisma.pharmacy.create({
-      data: {
-        name: dto.name,
-        slug,
-        phone: dto.phone,
-        street: dto.street,
-        city: dto.city ?? 'Abidjan',
-        district: dto.district,
-        email: dto.email,
-        latitude: dto.latitude,
-        longitude: dto.longitude,
-        openTime: dto.openTime ?? '08:00',
-        closeTime: dto.closeTime ?? '20:00',
-        licenseNo: dto.licenseNo,
-        description: dto.description,
-      },
+    const wantsStaff = Boolean(dto.staffUsername?.trim() && dto.staffPassword);
+    if (dto.staffPassword && !dto.staffUsername?.trim()) {
+      throw new BadRequestException('Pseudo pharmacien requis avec le mot de passe');
+    }
+
+    let staffUsername: string | undefined;
+    let staffEmail: string | undefined;
+    let staffPhone: string | undefined;
+
+    if (wantsStaff) {
+      staffUsername = dto.staffUsername!.trim().toLowerCase();
+      staffEmail = (dto.staffEmail?.trim() || dto.email?.trim() || `${staffUsername}@pharmavie.space`).toLowerCase();
+      staffPhone = dto.staffPhone?.trim() || dto.phone.trim();
+
+      const conflict = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { username: staffUsername },
+            { email: staffEmail },
+            { phone: staffPhone },
+          ],
+        },
+      });
+      if (conflict) {
+        throw new BadRequestException(
+          'Un compte existe déjà avec ce pseudo, email ou téléphone. Utilisez des identifiants uniques.',
+        );
+      }
+    }
+
+    const passwordHash = wantsStaff ? await hashPassword(dto.staffPassword!) : undefined;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const pharmacy = await tx.pharmacy.create({
+        data: {
+          name: dto.name,
+          slug,
+          phone: dto.phone,
+          street: dto.street,
+          city: dto.city ?? 'Abidjan',
+          district: dto.district,
+          email: dto.email,
+          latitude: dto.latitude,
+          longitude: dto.longitude,
+          openTime: dto.openTime ?? '08:00',
+          closeTime: dto.closeTime ?? '20:00',
+          licenseNo: dto.licenseNo,
+          description: dto.description,
+        },
+      });
+
+      let staffAccount: {
+        id: string;
+        username: string | null;
+        email: string | null;
+        phone: string;
+      } | null = null;
+
+      if (wantsStaff && passwordHash && staffUsername && staffEmail && staffPhone) {
+        staffAccount = await tx.user.create({
+          data: {
+            phone: staffPhone,
+            email: staffEmail,
+            username: staffUsername,
+            passwordHash,
+            firstName: dto.staffFirstName?.trim() || dto.name.split(' ').slice(-1)[0],
+            lastName: dto.staffLastName?.trim() || 'Pharmacie',
+            role: UserRole.PHARMACIST,
+          },
+          select: { id: true, username: true, email: true, phone: true },
+        });
+
+        await tx.pharmacyStaff.create({
+          data: {
+            userId: staffAccount.id,
+            pharmacyId: pharmacy.id,
+            role: UserRole.PHARMACIST,
+          },
+        });
+      }
+
+      return { pharmacy, staffAccount };
     });
 
-    return { success: true, data: pharmacy };
+    return {
+      success: true,
+      data: {
+        ...result.pharmacy,
+        staffAccount: result.staffAccount
+          ? {
+              username: result.staffAccount.username,
+              email: result.staffAccount.email,
+              phone: result.staffAccount.phone,
+              loginUrl: 'https://pharmavie.space/login',
+            }
+          : null,
+      },
+    };
   }
 
   async updatePharmacy(id: string, dto: AdminUpdatePharmacyDto) {
