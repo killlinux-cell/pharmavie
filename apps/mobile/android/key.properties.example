@@ -8,3 +8,4 @@ storePassword=VOTRE_MOT_DE_PASSE_KEYSTORE
 keyPassword=VOTRE_MOT_DE_PASSE_CLE
 keyAlias=upload
 storeFile=upload-keystore.jks
+# Chemin relatif au dossier android/ (pas android/app/)

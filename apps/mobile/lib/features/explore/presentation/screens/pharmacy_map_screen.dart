@@ -304,7 +304,7 @@ class _PharmacyMapScreenState extends State<PharmacyMapScreen> {
                             children: [
                               TileLayer(
                                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.pharmavie.mobile',
+                                userAgentPackageName: 'com.pharmavie.uborasoftware',
                               ),
                               MarkerLayer(
                                 markers: [

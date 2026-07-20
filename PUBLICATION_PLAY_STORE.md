@@ -5,7 +5,7 @@ Guide pas à pas pour publier l'application Android **PharmaVie**.
 | Info app | Valeur |
 |----------|--------|
 | **Nom affiché** | PharmaVie |
-| **Package ID** | `ci.pharmavie.pharmavie_mobile` |
+| **Package ID** | `com.pharmavie.uborasoftware` |
 | **Version** | 1.0.0 (build 1) |
 | **API prod** | https://api.pharmavie.space/api/v1 |
 | **Politique confidentialité** | https://pharmavie.space/confidentialite |
