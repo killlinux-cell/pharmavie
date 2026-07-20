@@ -105,7 +105,12 @@ export default function HomePage() {
       </main>
 
       <footer className="border-t border-surface-border bg-white py-8 text-center text-sm text-slate-500">
-        © {new Date().getFullYear()} PharmaVie — Côte d&apos;Ivoire
+        <p>© {new Date().getFullYear()} PharmaVie — Côte d&apos;Ivoire</p>
+        <p className="mt-2">
+          <Link href="/confidentialite" className="text-brand-600 hover:underline">
+            Politique de confidentialité
+          </Link>
+        </p>
       </footer>
     </div>
   );
