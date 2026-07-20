@@ -55,6 +55,7 @@ export class InventoryService {
         dci: item.product.dci,
         category: item.product.category,
         requiresRx: item.product.requiresRx,
+        imageUrl: item.product.imageUrl,
         barcode: item.product.barcode,
         eanCodes: item.product.eanCodes.map((e) => e.ean),
         price: item.price,

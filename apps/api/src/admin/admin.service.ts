@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { OrderStatus, PrescriptionStatus, UserRole } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { hashPassword } from '../auth/password.util';
+import { InventorySeedService } from '../inventory/inventory-seed.service';
 import {
   AdminAssignStaffDto,
   AdminUpdatePharmacyDto,
@@ -22,7 +23,10 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly inventorySeed: InventorySeedService,
+  ) {}
 
   async getOverview() {
     const today = new Date();
@@ -254,10 +258,15 @@ export class AdminService {
       return { pharmacy, staffAccount };
     });
 
+    const inventoryLines = await this.inventorySeed.seedPharmacy(result.pharmacy.id, {
+      onlyMissing: true,
+    });
+
     return {
       success: true,
       data: {
         ...result.pharmacy,
+        inventorySeeded: inventoryLines,
         staffAccount: result.staffAccount
           ? {
               username: result.staffAccount.username,

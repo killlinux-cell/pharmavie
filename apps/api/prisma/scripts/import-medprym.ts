@@ -27,10 +27,11 @@ import type { MedprymCache, MedprymListItem } from './medprym-types';
 import {
   airpToBarcode,
   categoryFromAtc,
-  estimatePrice,
   inferRequiresRx,
   normalizeDci,
 } from './medprym-utils';
+import { estimatePrice } from '../../src/common/estimate-price';
+import { productImagePath } from '../../src/common/product-image.util';
 
 const prisma = new PrismaClient();
 const CACHE_PATH = join(__dirname, '../data/medprym-cache.json');
@@ -198,6 +199,7 @@ async function importToDatabase(items: MedprymListItem[], opts: CliOptions) {
       laboratory: item.laboratory ?? null,
       requiresRx,
       description,
+      imageUrl: productImagePath(category, item.name.trim(), dci),
     };
 
     if (opts.dryRun) {
@@ -237,27 +239,10 @@ async function importToDatabase(items: MedprymListItem[], opts: CliOptions) {
 }
 
 async function assignStock() {
-  console.log('\n🏪 Attribution stock aux pharmacies...');
-  const pharmacies = await prisma.pharmacy.findMany({ where: { isActive: true } });
-  const products = await prisma.product.findMany({ select: { id: true, category: true, requiresRx: true } });
-
-  let count = 0;
-  for (const product of products) {
-    const category = product.category ?? 'Médicament';
-    const basePrice = estimatePrice(category, product.requiresRx);
-    for (const [i, ph] of pharmacies.entries()) {
-      const factor = i === 0 ? 1 : 0.6 + Math.random() * 0.3;
-      const qty = Math.max(0, Math.round((Math.random() * 80 + 10) * factor));
-      const price = Math.round(basePrice * (0.9 + i * 0.05));
-      await prisma.pharmacyProduct.upsert({
-        where: { pharmacyId_productId: { pharmacyId: ph.id, productId: product.id } },
-        update: { price, quantity: qty, isAvailable: qty > 0 },
-        create: { pharmacyId: ph.id, productId: product.id, price, quantity: qty, isAvailable: qty > 0 },
-      });
-      count++;
-    }
-  }
-  console.log(`   ${count} lignes stock (${products.length} produits × ${pharmacies.length} pharmacies)`);
+  console.log('\n🏪 Attribution stock aux pharmacies (catalogue complet)...');
+  const { seedAllPharmaciesInventory } = await import('../../src/common/inventory-seed.util');
+  const { lines, pharmacies } = await seedAllPharmaciesInventory(prisma, { onlyMissing: true });
+  console.log(`   ${lines} lignes pour ${pharmacies} pharmacies`);
 }
 
 async function main() {

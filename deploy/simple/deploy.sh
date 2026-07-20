@@ -250,9 +250,10 @@ if [[ "$FULL_DATA" == true ]]; then
   fi
   ok "Catalogue médicaments importé"
 
-  next "Import pharmacies + inventaire (15-30 min)"
+  next "Import pharmacies + inventaire complet (15-30 min)"
   npm run import:pharmacies -w @pharmavie/api
-  npm run inventory:seed -w @pharmavie/api -- --products=500
+  npm run inventory:seed -w @pharmavie/api -- --only-missing
+  npm run product-images:seed -w @pharmavie/api
   ok "Données complètes importées"
 else
   warn "Import pharmacies non lancé. Pour les ajouter : bash deploy/simple/deploy.sh --full-data"

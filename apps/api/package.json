@@ -19,6 +19,7 @@
     "import:medprym": "tsx prisma/scripts/import-medprym.ts",
     "import:pharmacies": "tsx prisma/scripts/import-pharmacies-ci.ts",
     "inventory:seed": "tsx prisma/scripts/seed-inventory.ts",
+    "product-images:seed": "tsx prisma/scripts/seed-product-images.ts",
     "ean:seed": "tsx prisma/scripts/seed-product-eans.ts",
     "db:studio": "prisma studio",
     "postinstall": "prisma generate"

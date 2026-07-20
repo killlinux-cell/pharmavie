@@ -7,7 +7,9 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const uploadsDir = join(process.cwd(), 'uploads', 'prescriptions');
+  const productsDir = join(process.cwd(), 'uploads', 'products');
   if (!existsSync(uploadsDir)) mkdirSync(uploadsDir, { recursive: true });
+  if (!existsSync(productsDir)) mkdirSync(productsDir, { recursive: true });
 
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
 

@@ -4,6 +4,7 @@ import 'package:pharmavie_mobile/core/api/api_client.dart';
 import 'package:pharmavie_mobile/core/theme/app_theme.dart';
 import 'package:pharmavie_mobile/core/utils/order_status.dart';
 import 'package:pharmavie_mobile/core/widgets/app_widgets.dart';
+import 'package:pharmavie_mobile/core/widgets/product_image.dart';
 import 'package:pharmavie_mobile/features/auth/presentation/auth_screen.dart';
 import 'package:pharmavie_mobile/core/services/cart_service.dart';
 import 'package:pharmavie_mobile/core/services/location_service.dart';
@@ -700,14 +701,10 @@ class _ProductCard extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
+              SizedBox(
                 width: 52,
                 height: 52,
-                decoration: BoxDecoration(
-                  color: AppColors.brand50,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(Icons.medication_liquid, color: AppColors.brand600),
+                child: ProductImage(imageUrl: item['imageUrl'] as String?),
               ),
               const SizedBox(width: 14),
               Expanded(

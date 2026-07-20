@@ -209,6 +209,7 @@ export class ProductsService {
         quantity: 0,
         inStock: false,
         requiresRx: product.requiresRx,
+        imageUrl: product.imageUrl,
         pharmacyId: pharmacy.id,
         pharmacyName: pharmacy.name,
         pharmacyAddress: pharmacy.street,
@@ -230,7 +231,7 @@ export class ProductsService {
       quantity: number;
       isAvailable: boolean;
       pharmacyId: string;
-      product: { name: string; dci: string | null; requiresRx: boolean };
+      product: { name: string; dci: string | null; requiresRx: boolean; imageUrl: string | null };
       pharmacy: { name: string; street: string; latitude: number; longitude: number };
     },
     params: SearchParams,
@@ -244,6 +245,7 @@ export class ProductsService {
       quantity: item.quantity,
       inStock: isInStock(item.quantity, item.isAvailable),
       requiresRx: item.product.requiresRx,
+      imageUrl: item.product.imageUrl,
       pharmacyId: item.pharmacyId,
       pharmacyName: item.pharmacy.name,
       pharmacyAddress: item.pharmacy.street,

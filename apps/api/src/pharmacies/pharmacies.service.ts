@@ -246,6 +246,7 @@ export class PharmaciesService {
         price: item.price,
         quantity: item.quantity,
         requiresRx: item.product.requiresRx,
+        imageUrl: item.product.imageUrl,
         pharmacyId: pharmacy.id,
         pharmacyName: pharmacy.name,
       })),

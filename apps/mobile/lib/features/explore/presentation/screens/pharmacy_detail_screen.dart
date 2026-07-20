@@ -7,6 +7,7 @@ import 'package:pharmavie_mobile/core/services/location_service.dart';
 import 'package:pharmavie_mobile/core/theme/app_theme.dart';
 import 'package:pharmavie_mobile/core/utils/navigation_helper.dart';
 import 'package:pharmavie_mobile/core/utils/order_status.dart';
+import 'package:pharmavie_mobile/core/widgets/product_image.dart';
 import 'package:pharmavie_mobile/core/widgets/app_widgets.dart';
 import 'package:pharmavie_mobile/core/widgets/feature_scaffold.dart';
 import 'package:pharmavie_mobile/features/auth/presentation/auth_screen.dart';
@@ -331,15 +332,7 @@ class _ProductTile extends StatelessWidget {
           ),
           child: Row(
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: AppColors.brand50,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Icon(Icons.medication_liquid, color: AppColors.brand600, size: 22),
-              ),
+              ProductImage(imageUrl: item['imageUrl'] as String?, size: 44, borderRadius: 12),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
